@@ -1,7 +1,6 @@
-use std::fs::OpenOptions;
-
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Pipe {
+    identifier:String,
     inner_colors: Vec<Color>,
 }
 
@@ -22,9 +21,11 @@ pub enum Color {
 }
 
 impl Pipe {
-    pub fn new() -> Self {
+    pub fn new(identifier:String) -> Self {
         Pipe {
+            identifier: identifier,
             inner_colors: vec![],
+
         }
     }
 
@@ -66,11 +67,15 @@ impl Pipe {
     }
 
     pub fn can_pour(&self, destination: &Pipe) -> bool {
+        if destination.identifier == self.identifier{
+            return false;
+        }
         //SI LA DESTINATION EST VIDE RENVOYER TRUE
         if destination.is_empty() && !self.is_empty() {
             return true;
         }
-        if destination.is_filled() || self.is_empty() {
+        
+        if destination.is_filled() || self.is_empty(){
             return false;
         }
 
@@ -87,7 +92,7 @@ mod tests {
 
     #[test]
     fn can_be_finished_because_all_same_color() {
-        let mut source = Pipe::new();
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
         source.add_color(Color::Red);
         source.add_color(Color::Red);
@@ -97,13 +102,13 @@ mod tests {
 
     #[test]
     fn can_be_finished_because_empty() {
-        let source = Pipe::new();
+        let source = Pipe::new(String::from("P1"));
         assert!(source.is_completed());
     }
 
     #[test]
     fn can_be_not_finished_because_mixed() {
-        let mut source = Pipe::new();
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
         source.add_color(Color::Red);
         source.add_color(Color::Red);
@@ -112,7 +117,7 @@ mod tests {
     }
     #[test]
     fn can_be_not_finished_because_not_completed() {
-        let mut source = Pipe::new();
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
         source.add_color(Color::Red);
         source.add_color(Color::Red);
@@ -120,42 +125,52 @@ mod tests {
     }
 
     #[test]
-    fn can_spill_into_empty_pipe() {
-        let mut source = Pipe::new();
+    fn can_pour_into_empty_pipe() {
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
 
-        let destination = Pipe::new();
+        let destination = Pipe::new(String::from("P2"));
 
         assert!(source.can_pour(&destination));
     }
 
     #[test]
-    fn cannot_spill_if_colors_different() {
-        let mut source = Pipe::new();
+    fn cannot_pour_into_same_identifier() {
+        let mut source = Pipe::new(String::from("P1"));
+        source.add_color(Color::Red);
+        
+        let destination = Pipe::new(String::from("P1"));
+
+        assert!(!source.can_pour(&destination));
+    }
+
+    #[test]
+    fn cannot_pour_if_colors_different() {
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
 
-        let mut destination = Pipe::new();
+        let mut destination = Pipe::new(String::from("P2"));
         destination.add_color(Color::Blue);
         assert!(!source.can_pour(&destination));
     }
 
     #[test]
-    fn can_spill_if_same_color() {
-        let mut source = Pipe::new();
+    fn can_pour_if_same_color() {
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
 
-        let mut destination = Pipe::new();
+        let mut destination = Pipe::new(String::from("P2"));
         destination.add_color(Color::Red);
 
         assert!(source.can_pour(&destination));
     }
 
     #[test]
-    fn cannot_spill_if_destination_full() {
-        let mut source = Pipe::new();
+    fn cannot_pour_if_destination_full() {
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
 
-        let mut destination = Pipe::new();
+        let mut destination = Pipe::new(String::from("P2"));
         destination.add_color(Color::Red);
         destination.add_color(Color::Red);
         destination.add_color(Color::Red);
@@ -165,19 +180,19 @@ mod tests {
     }
 
     #[test]
-    fn cannot_spill_if_source_empty() {
-        let source = Pipe::new();
-        let destination = Pipe::new();
+    fn cannot_pour_if_source_empty() {
+        let source = Pipe::new(String::from("P1"));
+        let destination = Pipe::new(String::from("P2"));
 
         assert!(!source.can_pour(&destination));
     }
 
     #[test]
     fn poor_if_dst_empty() {
-        let mut source = Pipe::new();
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Blue);
         source.add_color(Color::Blue);
-        let mut destination = Pipe::new();
+        let mut destination = Pipe::new(String::from("P2"));
 
         source.pour_into(&mut destination);
 
@@ -187,10 +202,10 @@ mod tests {
 
     #[test]
     fn poor_if_dst_good_color() {
-        let mut source = Pipe::new();
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Blue);
         source.add_color(Color::Red);
-        let mut destination = Pipe::new();
+        let mut destination = Pipe::new(String::from("P2"));
         destination.add_color(Color::Blue);
         destination.add_color(Color::Red);
 
@@ -201,10 +216,10 @@ mod tests {
     }
     #[test]
     fn poor_if_dst_wrong_color() {
-        let mut source = Pipe::new();
+        let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Blue);
         source.add_color(Color::Red);
-        let mut destination = Pipe::new();
+        let mut destination = Pipe::new(String::from("P2"));
         destination.add_color(Color::Blue);
         destination.add_color(Color::Red);
         destination.add_color(Color::Yellow);
@@ -216,8 +231,8 @@ mod tests {
     }
     #[test]
     fn poor_if_src_empty() {
-        let mut source = Pipe::new();
-        let mut destination = Pipe::new();
+        let mut source = Pipe::new(String::from("P1"));
+        let mut destination = Pipe::new(String::from("P2"));
         destination.add_color(Color::Blue);
         destination.add_color(Color::Red);
         destination.add_color(Color::Yellow);
