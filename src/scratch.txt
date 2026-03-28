@@ -1,11 +1,34 @@
-mod game;
-mod pipe;
-use std::collections::{HashMap, HashSet};
+let mut pipes = HashMap::new();
+    let mut p1 = Pipe::new(String::from("P1"));
+    p1.add_color(Color::Red);
+    p1.add_color(Color::Blue);
+    p1.add_color(Color::Blue);
+    p1.add_color(Color::Red);
 
-use crate::game::Game;
-use crate::pipe::{Color, Pipe};
+    let mut p2 = Pipe::new(String::from("P2"));
+    p2.add_color(Color::Blue);
+    p2.add_color(Color::Red);
+    p2.add_color(Color::Red);
+    p2.add_color(Color::Blue);
+    
+    let p3 = Pipe::new(String::from("P3"));
 
-fn main() {
+    pipes.insert(String::from("P1"), p1);
+    pipes.insert(String::from("P2"), p2);
+    pipes.insert(String::from("P3"), p3);
+
+    let game = Game::new(pipes);
+
+    if let Some(solution) = solve_puzzle_by_bruteforce(&game) {
+        println!("Solution trouvée : {}", solution);
+    } else {
+        println!("Aucune solution trouvée");
+    }
+
+
+
+
+
     let mut pipes = HashMap::new();
     let mut p1 = Pipe::new(String::from("P1"));
     p1.add_color(Color::Brown);
@@ -103,86 +126,3 @@ fn main() {
     pipes.insert(String::from("P12"), p12);
     pipes.insert(String::from("P13"), p13);
     pipes.insert(String::from("P14"), p14);
-
-    let game = Game::new(pipes);
-    if let Some(solution) = solve_puzzle_by_bruteforce(&game) {
-        println!("Solution trouvée : {}", solution);
-    } else {
-        println!("Aucune solution trouvée");
-    }
-}
-
-fn game_state_key(game: &Game) -> String {
-    let mut names: Vec<String> = game.pipes().keys().cloned().collect();
-    names.sort();
-
-    let pipes = game.pipes();
-    names
-        .iter()
-        .map(|name| format!("{}:{:?}", name, pipes.get(name).unwrap()))
-        .collect::<Vec<_>>()
-        .join("|")
-}
-
-fn search_bruteforce(game: &Game, visited: &mut HashSet<String>, path: &mut Vec<String>) -> bool {
-    if game.is_finished() {
-        return true;
-    }
-
-    let state_key = game_state_key(game);
-    if visited.contains(&state_key) {
-        return false;
-    }
-    visited.insert(state_key);
-
-    let mut names: Vec<String> = game.pipes().keys().cloned().collect();
-    names.sort();
-
-    for src in &names {
-        for dst in &names {
-            if src == dst {
-                continue;
-            }
-
-            let pipes = game.pipes();
-            let source_pipe = pipes.get(src).unwrap();
-            let destination_pipe = pipes.get(dst).unwrap();
-
-            if !source_pipe.can_pour(destination_pipe) {
-                continue;
-            }
-
-            let mut next_pipes = game.pipes();
-            let mut source_mut = next_pipes.remove(src).unwrap();
-            let mut dest_mut = next_pipes.remove(dst).unwrap();
-
-            source_mut.pour_into(&mut dest_mut);
-
-            next_pipes.insert(src.clone(), source_mut);
-            next_pipes.insert(dst.clone(), dest_mut);
-
-            let next_game = Game::new(next_pipes);
-
-            path.push(format!("{}->{}", src, dst));
-
-            if search_bruteforce(&next_game, visited, path) {
-                return true;
-            }
-
-            path.pop();
-        }
-    }
-
-    false
-}
-
-fn solve_puzzle_by_bruteforce(game: &Game) -> Option<String> {
-    let mut visited = HashSet::new();
-    let mut path = Vec::new();
-
-    if search_bruteforce(game, &mut visited, &mut path) {
-        Some(path.join(","))
-    } else {
-        None
-    }
-}
