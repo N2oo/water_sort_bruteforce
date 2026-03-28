@@ -175,8 +175,11 @@ fn search_bruteforce(game: &Game, visited: &mut HashSet<String>, path: &mut Vec<
             next_pipes.insert(dst.clone(), dest_mut);
 
             let next_game = Game::new(next_pipes);
+            
+            let next = format!("{}->{}", src, dst);
+            let could_previous = format!("{}->{}", dst, src);
 
-            path.push(format!("{}->{}", src, dst));
+            path.push(next);
 
             if search_bruteforce(&next_game, visited, path) {
                 return true;
@@ -194,8 +197,26 @@ fn solve_puzzle_by_bruteforce(game: &Game) -> Option<Vec<String>> {
     let mut path = Vec::new();
 
     if search_bruteforce(game, &mut visited, &mut path) {
-        Some(path)
+        Some(optimize(path))
     } else {
         None
     }
+}
+
+fn optimize(path:Vec<String>)->Vec<String>{
+    let mut result:Vec<String> = vec![];
+    let arrow = "->";
+
+    for (_,item )in path.iter().enumerate(){
+        if let Some(previous) = result.last(){
+            let splitted:Vec<&str> = item.split(&arrow).collect();
+            let inversed_current = format!("{}{}{}",splitted[1],&arrow,splitted[0]);
+            if *previous == inversed_current{
+                result.pop();
+            }
+        }
+        result.push(item.clone());
+    } 
+
+    return result;
 }
