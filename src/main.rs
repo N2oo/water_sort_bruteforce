@@ -106,7 +106,7 @@ fn main() {
 
     let game = Game::new(pipes);
     if let Some(solution) = solve_puzzle_by_bruteforce(&game) {
-        println!("Solution trouvée : {}", solution);
+        println!("Solution trouvée en {} coups : {solution:#?}",solution.len());
     } else {
         println!("Aucune solution trouvée");
     }
@@ -125,6 +125,19 @@ fn game_state_key(game: &Game) -> String {
 }
 
 fn search_bruteforce(game: &Game, visited: &mut HashSet<String>, path: &mut Vec<String>) -> bool {
+    // Limite de profondeur pour éviter l'overflow
+    const MAX_DEPTH: usize = 50;
+    
+    if path.len() > MAX_DEPTH {
+        eprintln!("⚠️  Profondeur maximale atteinte ({}) - chemin actuel ({} moves) - terminés ({}/{}):", 
+                  MAX_DEPTH, path.len(),game.how_many_finished(),game.pipes().len()
+                );
+        println!("{path:#?}");
+        eprintln!("Derniers mouvements: {:?}", 
+                  path.iter().skip(path.len().saturating_sub(MAX_DEPTH)).collect::<Vec<_>>());
+        return false;
+    }
+    
     if game.is_finished() {
         return true;
     }
@@ -176,12 +189,12 @@ fn search_bruteforce(game: &Game, visited: &mut HashSet<String>, path: &mut Vec<
     false
 }
 
-fn solve_puzzle_by_bruteforce(game: &Game) -> Option<String> {
+fn solve_puzzle_by_bruteforce(game: &Game) -> Option<Vec<String>> {
     let mut visited = HashSet::new();
     let mut path = Vec::new();
 
     if search_bruteforce(game, &mut visited, &mut path) {
-        Some(path.join(","))
+        Some(path)
     } else {
         None
     }

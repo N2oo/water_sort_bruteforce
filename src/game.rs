@@ -15,6 +15,15 @@ impl Game {
         return self.pipes.clone();
     }
 
+    pub fn how_many_finished(&self)->u8{
+        let mut count:u8 = 0;
+        for (_name,p) in &self.pipes{
+            if p.is_completed() {
+                count+=1;
+            }
+        }
+        return count;
+    }
     pub fn is_finished(& self)->bool{
         for (_name,p) in &self.pipes{
             if !p.is_completed() {

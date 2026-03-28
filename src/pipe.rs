@@ -28,6 +28,19 @@ impl Pipe {
 
         }
     }
+    
+    pub fn all_same_colors(&self)->bool{
+        if self.inner_colors.len() < 1{
+            return false;
+        }
+        let pickedColor = self.inner_colors.last().unwrap();
+        for color in &self.inner_colors{
+            if *pickedColor != *color{
+                return false;
+            }
+        }
+        return true;
+    }
 
     pub fn is_empty(&self) -> bool {
         return self.inner_colors.is_empty();
@@ -70,6 +83,12 @@ impl Pipe {
         if destination.identifier == self.identifier{
             return false;
         }
+        if self.is_empty() && destination.is_empty(){
+            return false;
+        }
+        if self.all_same_colors() && destination.is_empty(){
+            return false;
+        }
         //SI LA DESTINATION EST VIDE RENVOYER TRUE
         if destination.is_empty() && !self.is_empty() {
             return true;
@@ -89,6 +108,40 @@ impl Pipe {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn all_same_color_empty() {
+        let source = Pipe::new(String::from("P1"));
+
+        assert!(!source.all_same_colors());
+    }
+
+    #[test]
+    fn all_same_color_one() {
+        let mut source = Pipe::new(String::from("P1"));
+        source.add_color(Color::Blue);
+
+        assert!(source.all_same_colors());
+    }
+    #[test]
+    fn all_same_color_two() {
+        let mut source = Pipe::new(String::from("P1"));
+        source.add_color(Color::Blue);
+        source.add_color(Color::Blue);
+
+        assert!(source.all_same_colors());
+    }
+
+    #[test]
+    fn all_same_color_shuffle() {
+        let mut source = Pipe::new(String::from("P1"));
+        source.add_color(Color::Blue);
+        source.add_color(Color::Blue);
+        source.add_color(Color::Red);
+        source.add_color(Color::Blue);
+
+        assert!(!source.all_same_colors());
+    }
 
     #[test]
     fn can_be_finished_because_all_same_color() {
@@ -125,13 +178,24 @@ mod tests {
     }
 
     #[test]
-    fn can_pour_into_empty_pipe() {
+    fn can_pour_into_empty_pipe_because_multiple_src_color() {
+        let mut source = Pipe::new(String::from("P1"));
+        source.add_color(Color::Red);
+        source.add_color(Color::Blue);
+
+        let destination = Pipe::new(String::from("P2"));
+
+        assert!(source.can_pour(&destination));
+    }
+
+    #[test]
+    fn cannot_pour_into_empty_pipe_because_single_src_color() {
         let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Red);
 
         let destination = Pipe::new(String::from("P2"));
 
-        assert!(source.can_pour(&destination));
+        assert!(!source.can_pour(&destination));
     }
 
     #[test]
@@ -151,6 +215,27 @@ mod tests {
 
         let mut destination = Pipe::new(String::from("P2"));
         destination.add_color(Color::Blue);
+        assert!(!source.can_pour(&destination));
+    }
+
+    #[test]
+    fn cannot_pour_if_both_empty() {
+        let source = Pipe::new(String::from("P1"));
+
+        let destination = Pipe::new(String::from("P2"));
+
+        assert!(!source.can_pour(&destination));
+    }
+
+    #[test]
+    fn cannot_pour_if_all_same_to_empty() {
+        let mut source = Pipe::new(String::from("P1"));
+        source.add_color(Color::Red);
+        source.add_color(Color::Red);
+        source.add_color(Color::Red);
+
+        let destination = Pipe::new(String::from("P2"));
+
         assert!(!source.can_pour(&destination));
     }
 
@@ -191,13 +276,12 @@ mod tests {
     fn poor_if_dst_empty() {
         let mut source = Pipe::new(String::from("P1"));
         source.add_color(Color::Blue);
-        source.add_color(Color::Blue);
+        source.add_color(Color::Red);
         let mut destination = Pipe::new(String::from("P2"));
 
         source.pour_into(&mut destination);
-
-        assert!(source.is_empty());
-        assert_eq!(destination.get_filled_level(), 2)
+        assert_eq!(destination.get_filled_level(), 1);
+        assert_eq!(source.get_filled_level(), 1);
     }
 
     #[test]
