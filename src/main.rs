@@ -1,115 +1,82 @@
 mod game;
 mod pipe;
 use std::collections::{HashMap, HashSet};
+use std::error::Error;
+use std::fs::File;
+use std::path::Path;
 
 use crate::game::Game;
 use crate::pipe::{Color, Pipe};
 
 fn main() {
-    let mut pipes = HashMap::new();
-    let mut p1 = Pipe::new(String::from("P1"));
-    p1.add_color(Color::Brown);
-    p1.add_color(Color::Lemon);
-    p1.add_color(Color::Blue);
-    p1.add_color(Color::Grey);
-    let mut p2 = Pipe::new(String::from("P2"));
-    p2.add_color(Color::Green);
-    p2.add_color(Color::Red);
-    p2.add_color(Color::Red);
-    p2.add_color(Color::Green);
-    
-    let mut p3 = Pipe::new(String::from("P3"));
-    p3.add_color(Color::Pink);
-    p3.add_color(Color::Blue);
-    p3.add_color(Color::LightGreen);
-    p3.add_color(Color::LightBlue);
+    let json_path = std::env::args().nth(1).unwrap_or_else(|| "level.json".to_string());
 
-    let mut p4 = Pipe::new(String::from("P4"));
-    p4.add_color(Color::LightGreen);
-    p4.add_color(Color::Grey);
-    p4.add_color(Color::Brown);
-    p4.add_color(Color::Orange);
+    let game = match load_game_from_json(Path::new(&json_path)) {
+        Ok(game) => game,
+        Err(err) => {
+            eprintln!("Erreur lors du chargement du JSON '{}': {}", json_path, err);
+            eprintln!("Utilisation: cargo run -- <fichier_json>");
+            return;
+        }
+    };
 
-    let mut p5 = Pipe::new(String::from("P5"));
-    p5.add_color(Color::Blue);
-    p5.add_color(Color::Orange);
-    p5.add_color(Color::LightBlue);
-    p5.add_color(Color::Purple);
-
-    
-    let mut p6 = Pipe::new(String::from("P6"));
-    p6.add_color(Color::Yellow);
-    p6.add_color(Color::Yellow);
-    p6.add_color(Color::Lemon);
-    p6.add_color(Color::LightBlue);
-
-    
-    let mut p7 = Pipe::new(String::from("P7"));
-    p7.add_color(Color::LightGreen);
-    p7.add_color(Color::Blue);
-    p7.add_color(Color::Purple);
-    p7.add_color(Color::Grey);
-
-    
-    let mut p8 = Pipe::new(String::from("P8"));
-    p8.add_color(Color::Pink);
-    p8.add_color(Color::Red);
-    p8.add_color(Color::Green);
-    p8.add_color(Color::Orange);
-
-    
-    let mut p9 = Pipe::new(String::from("P9"));
-    p9.add_color(Color::LightBlue);
-    p9.add_color(Color::Yellow);
-    p9.add_color(Color::Grey);
-    p9.add_color(Color::Brown);
-
-    
-    let mut p10 = Pipe::new(String::from("P10"));
-    p10.add_color(Color::Purple);
-    p10.add_color(Color::Pink);
-    p10.add_color(Color::Brown);
-    p10.add_color(Color::LightGreen);
-
-    
-    let mut p11 = Pipe::new(String::from("P11"));
-    p11.add_color(Color::Red);
-    p11.add_color(Color::Lemon);
-    p11.add_color(Color::Green);
-    p11.add_color(Color::Purple);
-
-    
-    let mut p12 = Pipe::new(String::from("P12"));
-    p12.add_color(Color::Yellow);
-    p12.add_color(Color::Orange);
-    p12.add_color(Color::Lemon);
-    p12.add_color(Color::Pink);
-
-    let mut p13 = Pipe::new(String::from("P13"));
-    let mut p14 = Pipe::new(String::from("P14"));
-
-
-    pipes.insert(String::from("P1"), p1);
-    pipes.insert(String::from("P2"), p2);
-    pipes.insert(String::from("P3"), p3);
-    pipes.insert(String::from("P4"), p4);
-    pipes.insert(String::from("P5"), p5);
-    pipes.insert(String::from("P6"), p6);
-    pipes.insert(String::from("P7"), p7);
-    pipes.insert(String::from("P8"), p8);
-    pipes.insert(String::from("P9"), p9);
-    pipes.insert(String::from("P10"), p10);
-    pipes.insert(String::from("P11"), p11);
-    pipes.insert(String::from("P12"), p12);
-    pipes.insert(String::from("P13"), p13);
-    pipes.insert(String::from("P14"), p14);
-
-    let game = Game::new(pipes);
-    if let Some(solution) = solve_puzzle_by_bruteforce(&game) {
-        println!("Solution trouvée en {} coups : {solution:#?}",solution.len());
+    if let Some(moves) = solve_puzzle_by_bruteforce(&game) {
+        println!("✓ Solution trouvée en {} mouvements !\n", moves.len());
+        for (i, movement) in moves.iter().enumerate() {
+            println!("  Mouvement {} : {}", i + 1, movement);
+        }
     } else {
-        println!("Aucune solution trouvée");
+        println!("✗ Aucune solution trouvée");
     }
+}
+
+fn parse_color(color: &str) -> Result<Color, String> {
+    match color.to_lowercase().as_str() {
+        "grey" | "gray" => Ok(Color::Grey),
+        "blue" => Ok(Color::Blue),
+        "lemon" => Ok(Color::Lemon),
+        "brown" => Ok(Color::Brown),
+        "green" => Ok(Color::Green),
+        "red" => Ok(Color::Red),
+        "lightgreen" | "light_green" => Ok(Color::LightGreen),
+        "lightblue" | "light_blue" => Ok(Color::LightBlue),
+        "pink" => Ok(Color::Pink),
+        "orange" => Ok(Color::Orange),
+        "purple" => Ok(Color::Purple),
+        "yellow" => Ok(Color::Yellow),
+        _ => Err(format!("Couleur inconnue : '{}'.", color)),
+    }
+}
+
+fn load_game_from_json(path: &Path) -> Result<Game, Box<dyn Error>> {
+    println!("{path:#?}");
+    let file = File::open(path)?;
+    let json: serde_json::Value = serde_json::from_reader(file)?;
+
+    let pipes_obj = json
+        .get("pipes")
+        .and_then(|v| v.as_object())
+        .ok_or("La clé 'pipes' doit être un objet JSON")?;
+
+    let mut pipes = HashMap::new();
+
+    for (ident, value) in pipes_obj.iter() {
+        let colors = value
+            .as_array()
+            .ok_or_else(|| format!("La valeur pour '{}' doit être un tableau", ident))?;
+
+        let mut pipe = Pipe::new(ident.clone());
+        for color_value in colors {
+            let color_str = color_value
+                .as_str()
+                .ok_or_else(|| format!("Couleur non valide dans '{}'", ident))?;
+            pipe.add_color(parse_color(color_str)?);
+        }
+
+        pipes.insert(ident.clone(), pipe);
+    }
+
+    Ok(Game::new(pipes))
 }
 
 fn game_state_key(game: &Game) -> String {
@@ -125,19 +92,14 @@ fn game_state_key(game: &Game) -> String {
 }
 
 fn search_bruteforce(game: &Game, visited: &mut HashSet<String>, path: &mut Vec<String>) -> bool {
-    // Limite de profondeur pour éviter l'overflow
-    const MAX_DEPTH: usize = 50;
-    
+    const MAX_DEPTH: usize = 1000;
+
     if path.len() > MAX_DEPTH {
-        eprintln!("⚠️  Profondeur maximale atteinte ({}) - chemin actuel ({} moves) - terminés ({}/{}):", 
-                  MAX_DEPTH, path.len(),game.how_many_finished(),game.pipes().len()
-                );
-        println!("{path:#?}");
-        eprintln!("Derniers mouvements: {:?}", 
-                  path.iter().skip(path.len().saturating_sub(MAX_DEPTH)).collect::<Vec<_>>());
+        eprintln!("⚠️  Profondeur maximale atteinte ({}) - chemin actuel ({} moves)", MAX_DEPTH, path.len());
+        eprintln!("Derniers mouvements: {:?}", path.iter().skip(path.len().saturating_sub(10)).collect::<Vec<_>>());
         return false;
     }
-    
+
     if game.is_finished() {
         return true;
     }
@@ -175,11 +137,8 @@ fn search_bruteforce(game: &Game, visited: &mut HashSet<String>, path: &mut Vec<
             next_pipes.insert(dst.clone(), dest_mut);
 
             let next_game = Game::new(next_pipes);
-            
-            let next = format!("{}->{}", src, dst);
-            let could_previous = format!("{}->{}", dst, src);
 
-            path.push(next);
+            path.push(format!("{}->{}", src, dst));
 
             if search_bruteforce(&next_game, visited, path) {
                 return true;
@@ -203,20 +162,23 @@ fn solve_puzzle_by_bruteforce(game: &Game) -> Option<Vec<String>> {
     }
 }
 
-fn optimize(path:Vec<String>)->Vec<String>{
-    let mut result:Vec<String> = vec![];
+fn optimize(path: Vec<String>) -> Vec<String> {
+    return path;
+    let mut result = Vec::new();
     let arrow = "->";
 
-    for (_,item )in path.iter().enumerate(){
-        if let Some(previous) = result.last(){
-            let splitted:Vec<&str> = item.split(&arrow).collect();
-            let inversed_current = format!("{}{}{}",splitted[1],&arrow,splitted[0]);
-            if *previous == inversed_current{
-                result.pop();
+    for item in path {
+        if let Some(previous) = result.last() {
+            let splitted: Vec<&str> = item.split(arrow).collect();
+            if splitted.len() == 2 {
+                let inversed_current = format!("{}{}{}", splitted[1], arrow, splitted[0]);
+                if *previous == inversed_current {
+                    result.pop();
+                }
             }
         }
-        result.push(item.clone());
-    } 
+        result.push(item);
+    }
 
-    return result;
+    result
 }

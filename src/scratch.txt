@@ -1,31 +1,55 @@
-let mut pipes = HashMap::new();
-    let mut p1 = Pipe::new(String::from("P1"));
-    p1.add_color(Color::Red);
-    p1.add_color(Color::Blue);
-    p1.add_color(Color::Blue);
-    p1.add_color(Color::Red);
-
-    let mut p2 = Pipe::new(String::from("P2"));
-    p2.add_color(Color::Blue);
-    p2.add_color(Color::Red);
-    p2.add_color(Color::Red);
-    p2.add_color(Color::Blue);
-    
-    let p3 = Pipe::new(String::from("P3"));
-
-    pipes.insert(String::from("P1"), p1);
-    pipes.insert(String::from("P2"), p2);
-    pipes.insert(String::from("P3"), p3);
-
-    let game = Game::new(pipes);
-
-    if let Some(solution) = solve_puzzle_by_bruteforce(&game) {
-        println!("Solution trouvée : {}", solution);
-    } else {
-        println!("Aucune solution trouvée");
-    }
-
-
+Solution trouvée en 50 coups : [
+    "P1->P13",
+    "P10->P14",
+    "P7->P13",
+    "P5->P7",
+    "P3->P5",
+    "P14->P3",
+    "P4->P14",
+    "P4->P10",
+    "P13->P4",
+    "P11->P13",
+    "P7->P13",
+    "P1->P7",
+    "P8->P14",
+    "P11->P8",
+    "P1->P11",
+    "P10->P1",
+    "P12->P10",
+    "P11->P12",
+    "P12->P11",
+    "P14->P12",
+    "P10->P14",
+    "P10->P13",
+    "P2->P10",
+    "P8->P10",
+    "P2->P8",
+    "P10->P2",
+    "P11->P10",
+    "P8->P11",
+    "P14->P8",
+    "P3->P14",
+    "P3->P7",
+    "P3->P8",
+    "P4->P3",
+    "P14->P4",
+    "P12->P14",
+    "P9->P1",
+    "P3->P9",
+    "P9->P3",
+    "P12->P9",
+    "P5->P12",
+    "P14->P5",
+    "P5->P14",
+    "P6->P12",
+    "P10->P6",
+    "P6->P10",
+    "P6->P9",
+    "P7->P5",
+    "P7->P4",
+    "P9->P6",
+    "P12->P9",
+]
 
 
 

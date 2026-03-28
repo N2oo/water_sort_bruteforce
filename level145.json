@@ -1,0 +1,18 @@
+{
+  "pipes": {
+    "P1": ["Brown", "Lemon", "Blue", "Grey"],
+    "P2": ["Green", "Red", "Red", "Green"],
+    "P3": ["Pink", "Blue", "LightGreen", "LightBlue"],
+    "P4": ["LightGreen", "Grey", "Brown", "Orange"],
+    "P5": ["Blue", "Orange", "LightBlue", "Purple"],
+    "P6": ["Yellow", "Yellow", "Lemon", "LightBlue"],
+    "P7": ["LightGreen", "Blue", "Purple", "Grey"],
+    "P8": ["Pink", "Red", "Green", "Orange"],
+    "P9": ["LightBlue", "Yellow", "Grey", "Brown"],
+    "P10":["Purple","Pink","Brown","LightGreen"],
+    "P11":["Red","Lemon","Green","Purple"],
+    "P12":["Yellow","Orange","Lemon","Pink"],
+    "P13":[],
+    "P14":[]
+  }
+}
