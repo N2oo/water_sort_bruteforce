@@ -1,4 +1,5 @@
-# Brings up PostgreSQL, the API and the React front end together:
+# Brings up PostgreSQL, the API and the React front end together. Each side is
+# built from its own folder:
 #
 #   docker compose up --build
 #   curl localhost:8080/health      # the API
@@ -20,7 +21,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   api:
-    build: .
+    build: ./backend
     environment:
       DATABASE_URL: postgres://water_sort:water_sort@postgres:5432/water_sort
       BIND_ADDRESS: 0.0.0.0:8080

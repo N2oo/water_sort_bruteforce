@@ -1,2 +1,10 @@
-/target
+# Rust
+backend/target/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Local environment
 .env
+.env.local

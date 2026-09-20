@@ -1,8 +1,9 @@
-# Builds the whole workspace, ships the API and the CLI in the same image.
+# Builds the whole Rust workspace and ships the API, the migration tool and the
+# CLI in the same image. Its build context is this directory, `backend/`.
 #
-#   docker build -t water-sort .
-#   docker run --rm -p 8080:8080 -e DATABASE_URL=postgres://... water-sort
-#   docker run --rm -v "$PWD/levels:/levels" water-sort water-sort /levels/level145.json
+#   docker build -t water-sort-api backend
+#   docker run --rm -p 8080:8080 -e DATABASE_URL=postgres://... water-sort-api
+#   docker run --rm -v "$PWD/backend/levels:/levels" water-sort-api water-sort /levels/level145.json
 
 FROM rust:1-slim-bookworm AS builder
 
