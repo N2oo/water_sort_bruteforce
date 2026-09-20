@@ -1,8 +1,6 @@
 target
 .git
 .gitignore
-docs
 *.md
 Dockerfile
-docker-compose.yml
-frontend
+.dockerignore
