@@ -1,7 +1,7 @@
 //! Composition root: read the configuration, plug the adapters, serve.
 
 use tracing_subscriber::{EnvFilter, fmt};
-use water_sort_api::adapters::inbound::http::{router, serve};
+use water_sort_api::adapters::inbound::http::{cors, router, serve};
 use water_sort_api::build_state;
 use water_sort_api::config::{Config, Storage};
 
@@ -28,6 +28,6 @@ async fn main() -> anyhow::Result<()> {
         "water sort api is listening"
     );
 
-    serve(listener, router(state)).await?;
+    serve(listener, router(state).layer(cors(&config.cors_origins))).await?;
     Ok(())
 }

@@ -1,9 +1,9 @@
 # Water sort
 
 A water sort puzzle solver, packaged as a small monorepo: the original
-bruteforce solver is still a CLI, and the same rules now also back an HTTP API
-that creates game sessions, plays moves on them, rolls them back and solves
-them.
+bruteforce solver is still a CLI, the same rules back an HTTP API that creates
+game sessions, plays moves on them, rolls them back and solves them, and a React
+front end drives all of it from a browser.
 
 ```
 crates/
@@ -12,6 +12,7 @@ crates/
   cli/        driving adapter: the command line solver
   api/        driving adapter: the HTTP API, plus its driven adapters
   migration/  the PostgreSQL schema (SeaORM migrations)
+frontend/     driving adapter: the React front end (Vite, TanStack Query)
 levels/       the historical level files
 ```
 
@@ -87,7 +88,13 @@ STORAGE=memory cargo run -p water-sort-api
 | `BIND_ADDRESS` | `0.0.0.0:8080` | where to listen |
 | `SOLVER_TIMEOUT_SECONDS` | `30` | a solve answers `504` past this |
 | `SOLVER_STACK_SIZE_MB` | `256` | stack of the solver thread |
+| `CORS_ALLOWED_ORIGINS` | `*` | origins a browser may call the API from |
 | `RUST_LOG` | `water_sort_api=info` | log filter |
+
+`CORS_ALLOWED_ORIGINS` takes a comma separated list, e.g.
+`http://localhost:5173,https://water-sort.example`. The API carries no
+credentials and no cookie, so the default allows any origin: it hands a page
+nothing it could not already fetch from the API itself.
 
 ### Endpoints
 
@@ -196,6 +203,29 @@ curl -sX POST localhost:8080/api/v1/puzzles/solve \
 }
 ```
 
+## The front end
+
+```sh
+cd frontend
+npm install
+npm run dev            # http://localhost:5173, proxying /api to :8080
+```
+
+One page per step of the path a scenario takes:
+
+| Route | What it does |
+| --- | --- |
+| `/design` | build a board, generate a random solvable one, or paste a level file — and read off the JSON payload every endpoint accepts |
+| `/solve` | solve the board being designed, a saved scenario, or pasted JSON, then replay the answer move by move |
+| `/games/{id}` | play a session: pour, undo, roll back, reset, solve from where you stand |
+| `/scenarios` | the saved boards: play, solve, edit a copy, drop |
+
+The API decides every move: the client posts to `/games/{id}/moves` and draws
+the board that comes back. The copy of the rules in `frontend/src/game/rules.ts`
+only serves what cannot wait for a round trip — the legal targets of a selected
+pipe, a local replay of a solution, and the warnings the designer shows before
+a board is submitted. See [`frontend/README.md`](frontend/README.md).
+
 ## Storage
 
 State lives in PostgreSQL. Boards are stored as `jsonb`, which keeps the schema
@@ -225,7 +255,7 @@ on the same tables.
 ## Docker
 
 ```sh
-docker compose up --build       # API on :8080, PostgreSQL next to it
+docker compose up --build       # front end on :5173, API on :8080, PostgreSQL next to them
 ```
 
 Or the image alone — it carries the API, the migration tool and the CLI:
@@ -242,6 +272,7 @@ docker run --rm water-sort water-sort /opt/water-sort/levels/level145.json
 ```sh
 cargo test                                   # rules, domain, HTTP API
 TEST_DATABASE_URL=postgres://…  cargo test   # …and the PostgreSQL adapter
+cd frontend && npm test                      # the rules mirrored in TypeScript
 ```
 
 The HTTP tests run the real router against the in-memory adapters, so they need

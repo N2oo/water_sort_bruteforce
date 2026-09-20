@@ -1,0 +1,28 @@
+# Serves the built app and forwards the API calls to ${API_URL}.
+#
+# The app is a single page application, so any unknown path has to fall back on
+# index.html — a reload on /games/<uuid> must not 404.
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass ${API_URL};
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # A hostile board can keep the solver busy up to SOLVER_TIMEOUT_SECONDS.
+        proxy_read_timeout 120s;
+    }
+
+    location /health {
+        proxy_pass ${API_URL};
+        proxy_set_header Host $host;
+    }
+}

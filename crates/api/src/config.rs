@@ -13,12 +13,41 @@ pub enum Storage {
     Memory,
 }
 
+/// Which origins a browser may call the API from.
+///
+/// The API carries no credentials and no session cookie, so `Any` — the
+/// default — only means "a page served from anywhere may call it", which is
+/// what the React front end needs when it is served from its own port.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CorsOrigins {
+    Any,
+    List(Vec<String>),
+}
+
+impl CorsOrigins {
+    /// `CORS_ALLOWED_ORIGINS=http://localhost:5173,https://example.org`, or
+    /// `*` (the default) for any origin.
+    fn from_env() -> Self {
+        match std::env::var("CORS_ALLOWED_ORIGINS") {
+            Ok(raw) if raw.trim() != "*" && !raw.trim().is_empty() => Self::List(
+                raw.split(',')
+                    .map(str::trim)
+                    .filter(|origin| !origin.is_empty())
+                    .map(str::to_string)
+                    .collect(),
+            ),
+            _ => Self::Any,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub bind_address: String,
     pub storage: Storage,
     pub solver_timeout: Duration,
     pub solver_stack_size: usize,
+    pub cors_origins: CorsOrigins,
 }
 
 impl Config {
@@ -43,6 +72,7 @@ impl Config {
             storage,
             solver_timeout: Duration::from_secs(parse("SOLVER_TIMEOUT_SECONDS", 30)?),
             solver_stack_size: parse::<usize>("SOLVER_STACK_SIZE_MB", 256)? * 1024 * 1024,
+            cors_origins: CorsOrigins::from_env(),
         })
     }
 }

@@ -12,11 +12,12 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 use uuid::Uuid;
-use water_sort_api::adapters::inbound::http::{AppState, router};
+use water_sort_api::adapters::inbound::http::{AppState, cors, router};
 use water_sort_api::adapters::outbound::persistence::{
     InMemoryGameSessionRepository, InMemoryScenarioRepository,
 };
 use water_sort_api::adapters::outbound::solver::BruteforceSolver;
+use water_sort_api::config::CorsOrigins;
 
 fn api() -> Router {
     router(AppState::new(
@@ -504,4 +505,47 @@ async fn a_game_and_a_scenario_can_be_dropped() {
 
     let (status, _) = call(&api, "GET", &format!("/api/v1/games/{id}"), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// The browser front end is served from its own origin, so the preflight of a
+/// `POST` has to come back with the headers that let the call through.
+#[tokio::test]
+async fn answers_the_cors_preflight_of_the_front_end() {
+    let origin = "http://localhost:5173";
+    let api = api().layer(cors(&CorsOrigins::List(vec![origin.to_string()])));
+
+    let preflight = Request::builder()
+        .method("OPTIONS")
+        .uri("/api/v1/scenarios")
+        .header("origin", origin)
+        .header("access-control-request-method", "POST")
+        .header("access-control-request-headers", "content-type")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = api.clone().oneshot(preflight).await.unwrap();
+    let headers = response.headers();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(headers.get("access-control-allow-origin").unwrap(), origin);
+    assert!(
+        headers
+            .get("access-control-allow-methods")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("POST")
+    );
+
+    // An origin that was not allowed gets no header, and the browser stops there.
+    let refused = Request::builder()
+        .method("OPTIONS")
+        .uri("/api/v1/scenarios")
+        .header("origin", "http://evil.example")
+        .header("access-control-request-method", "POST")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = api.oneshot(refused).await.unwrap();
+    assert!(response.headers().get("access-control-allow-origin").is_none());
 }

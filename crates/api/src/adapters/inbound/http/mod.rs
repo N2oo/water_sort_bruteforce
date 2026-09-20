@@ -12,17 +12,19 @@ mod scenarios;
 use std::sync::Arc;
 
 use axum::Json;
-use axum::http::StatusCode;
+use axum::http::{Method, StatusCode, header};
 use axum::response::IntoResponse;
 use axum::routing::{delete, get, post};
 use axum::{Router, serve::Serve};
 use serde_json::json;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 use crate::application::{
     GameService, GameSessionRepository, PuzzleSolver, ScenarioRepository, ScenarioService,
     SolvingService,
 };
+use crate::config::CorsOrigins;
 
 /// What every handler is given: the use cases, nothing else.
 #[derive(Clone)]
@@ -66,6 +68,25 @@ pub fn router(state: AppState) -> Router {
         .fallback(not_found)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// The browser front end is served from its own origin, so it needs this.
+///
+/// Nothing here is authenticated — no cookie, no credentials — so allowing any
+/// origin hands a page nothing it could not already fetch from the API itself.
+/// `CORS_ALLOWED_ORIGINS` narrows it to a list when a deployment wants that.
+pub fn cors(origins: &CorsOrigins) -> CorsLayer {
+    let allowed = match origins {
+        CorsOrigins::Any => AllowOrigin::any(),
+        CorsOrigins::List(list) => AllowOrigin::list(
+            list.iter().filter_map(|origin| origin.parse().ok()).collect::<Vec<_>>(),
+        ),
+    };
+
+    CorsLayer::new()
+        .allow_origin(allowed)
+        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE])
 }
 
 async fn health() -> impl IntoResponse {

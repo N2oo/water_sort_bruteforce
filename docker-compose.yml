@@ -1,7 +1,8 @@
-# Brings up PostgreSQL and the API together:
+# Brings up PostgreSQL, the API and the React front end together:
 #
 #   docker compose up --build
-#   curl localhost:8080/health
+#   curl localhost:8080/health      # the API
+#   open http://localhost:5173      # the front end
 
 services:
   postgres:
@@ -30,6 +31,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      # nginx serves the app and forwards /api and /health to this address, so
+      # the browser only ever talks to one origin.
+      API_URL: http://api:8080
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
 
 volumes:
   postgres-data:
