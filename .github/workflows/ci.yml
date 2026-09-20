@@ -1,0 +1,155 @@
+# What every pull request has to pass.
+#
+# Deliberately no `paths:` filter anywhere: a required check that is skipped
+# never reports, and a pull request waiting on a check that will never arrive
+# cannot be merged. Every job therefore runs on every pull request, and stays
+# cheap through caching instead.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+# A new push to a pull request makes the run in flight pointless; on the
+# default branch every commit keeps its own result.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend-test:
+    name: backend · tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      # --locked fails rather than silently resolving past Cargo.lock.
+      # The PostgreSQL adapter tests skip themselves without TEST_DATABASE_URL,
+      # so this needs no database.
+      - name: cargo test
+        run: cargo test --workspace --locked
+
+  frontend-test:
+    name: frontend · types and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      # `npm run lint` is `tsc -b`: the type check is the lint.
+      - name: Type check
+        run: npm run lint
+
+      - name: vitest
+        run: npm test
+
+  backend-audit:
+    name: backend · dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # Blocking. `backend/.cargo/audit.toml` lists the advisories that are
+      # waived, each with the reason it does not apply here.
+      - name: cargo audit
+        run: cargo audit
+
+      # A waived advisory disappears from the run that enforces it, so print
+      # the waivers next to it: what is ignored, and why, stays in the log.
+      - name: Waived advisories
+        if: always()
+        run: cat .cargo/audit.toml
+
+  frontend-audit:
+    name: frontend · dependency audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      # Blocking at high and critical. The tree currently carries two moderate
+      # advisories in vitest, a dev dependency whose only fix is a major bump.
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+      - name: npm audit (every severity)
+        if: always()
+        continue-on-error: true
+        run: npm audit
+
+  rust-style:
+    name: backend · rustfmt and clippy (advisory)
+    runs-on: ubuntu-latest
+    # Not blocking yet. The original solver sources predate either tool being
+    # run on them and were moved into the workspace untouched, so both fail
+    # today: rustfmt over ~25 files, clippy on crates/core/src/{pipe,game}.rs
+    # and one test. This job reports the backlog without gating a merge on it.
+    # Drop `continue-on-error` once it is cleared — see docs/development.md.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - name: cargo fmt --check
+        if: always()
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        if: always()
+        run: cargo clippy --workspace --all-targets -- -D warnings

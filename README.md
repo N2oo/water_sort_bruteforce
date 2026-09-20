@@ -60,6 +60,7 @@ make solve LEVEL=backend/levels/level145.json
 | `make api` `make api-memory` `make front` | run one side on the host |
 | `make solve LEVEL=…` | solve a level file with the CLI |
 | `make check` | the tests of both sides, plus the front end types |
+| `make audit` | both dependency trees, against the advisory databases |
 | `make test` `make lint` `make fmt` | one step of it |
 | `make build` | release binaries and a production bundle |
 

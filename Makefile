@@ -113,6 +113,22 @@ test-backend: ## Rules, domain and HTTP tests (add TEST_DATABASE_URL for the SQL
 test-frontend: ## The rules mirrored in TypeScript (vitest)
 	cd $(FRONTEND) && $(NPM) test
 
+# --- security ---------------------------------------------------------------
+#
+# Kept out of `check`, which stays offline and needs nothing installed: these
+# two fetch an advisory database. CI runs them as their own jobs.
+
+.PHONY: audit
+audit: audit-backend audit-frontend ## Check both dependency trees for known vulnerabilities
+
+.PHONY: audit-backend
+audit-backend: ## cargo audit (install it first: cargo install cargo-audit --locked)
+	cd $(BACKEND) && $(CARGO) audit
+
+.PHONY: audit-frontend
+audit-frontend: ## npm audit, failing at high and above
+	cd $(FRONTEND) && $(NPM) audit --audit-level=high
+
 # --- build ------------------------------------------------------------------
 
 .PHONY: build

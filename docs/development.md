@@ -67,6 +67,44 @@ into the workspace untouched so the algorithm stayed byte for byte the same.
 Clearing that backlog is its own change; until then `make check` is what a
 contributor and a CI job should run.
 
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request targeting `master` (and
+`main`, if the default branch is ever renamed), and on every push to those
+branches. There is no `paths:` filter anywhere on purpose: a required check
+that gets skipped never reports, and a pull request waiting on a check that
+never arrives cannot be merged.
+
+| Job | Runs | Blocking |
+| --- | --- | --- |
+| backend · tests | `cargo test --workspace --locked` | yes |
+| frontend · types and tests | `npm run lint` (`tsc -b`), then `npm test` | yes |
+| backend · dependency audit | `cargo audit` | yes |
+| frontend · dependency audit | `npm audit --audit-level=high` | yes |
+| backend · rustfmt and clippy | `cargo fmt --check`, `cargo clippy -D warnings` | **no** — the backlog above |
+
+Locally, `make check` covers the first two and `make audit` the next two.
+`make audit` is kept out of `make check` because it fetches an advisory
+database, while `check` stays offline.
+
+### Waived advisories
+
+`cargo audit` reads `backend/.cargo/audit.toml`, which lists the advisories
+that are waived and why. Today that is one:
+
+* **RUSTSEC-2023-0071** (`rsa`, Marvin timing sidechannel). `rsa` reaches
+  `Cargo.lock` through `sqlx-mysql`, which nothing enables — sea-orm is built
+  with `sqlx-postgres` alone, so `cargo tree -i rsa` resolves to nothing and the
+  crate is never compiled into any binary. No fixed release exists either. It
+  has to be un-waived if this workspace ever enables the MySQL driver.
+
+The job prints that file next to the check, so a waiver stays visible in the log
+rather than silently disappearing from the run that enforces it.
+
+`npm audit` blocks at high and critical. The tree currently carries two moderate
+advisories in `vitest`, a dev dependency whose only fix is a major version bump;
+the job prints every severity in a second, non-blocking step.
+
 ## Migrations
 
 They are SeaORM migrations and run at start up by default. To run them as a

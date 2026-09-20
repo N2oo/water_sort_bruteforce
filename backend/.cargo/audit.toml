@@ -1,0 +1,16 @@
+# Configuration for `cargo audit` (see `make audit-backend`).
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — Marvin attack, a timing sidechannel in `rsa`.
+    #
+    # `rsa` reaches Cargo.lock through `sqlx-mysql`, and nothing enables it:
+    # sea-orm is built with `sqlx-postgres` alone, so `cargo tree -i rsa`
+    # resolves to nothing and the crate is never compiled into any binary.
+    # There is no fixed release to upgrade to either.
+    #
+    # Revisit when sqlx drops the dependency, when a fixed `rsa` ships, or if
+    # this workspace ever enables the MySQL driver — at which point the
+    # advisory becomes real and this entry has to go.
+    "RUSTSEC-2023-0071",
+]
