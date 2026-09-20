@@ -359,5 +359,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 @media (max-width: 720px) {
   .app__header { flex-wrap: wrap; gap: 12px; }
   .app__main { padding: 16px; }
-  .app__nav { margin-left: 0; width: 100%; overflow-x: auto; }
+  /* Four links have to fit across a phone without clipping the last one. */
+  .app__nav { margin-left: 0; width: 100%; justify-content: space-between; }
+  .app__nav a { padding: 6px 9px; font-size: 14px; }
 }
