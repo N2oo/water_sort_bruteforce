@@ -1,6 +1,7 @@
 # Water sort — front end
 
-A React front end for `water-sort-api`. It follows one path:
+A React front end for `water-sort-api`, built on [shadcn/ui](https://ui.shadcn.com).
+It follows one path:
 
 ```
         design or paste a scenario
@@ -53,13 +54,58 @@ npm run preview        # serve dist/ locally
 npm test               # the rules, the generator and the JSON import
 ```
 
+## shadcn/ui
+
+Everything on screen is a shadcn/ui component. They live in
+`src/components/ui`, where the CLI puts them, and `components.json` is set up
+so `npx shadcn@latest add <component>` works as usual.
+
+`ui.shadcn.com` is unreachable from some networks, so `npm run ui:add` is the
+same thing over a route that stays open: it pulls the sources from the upstream
+repository (`shadcn-ui/ui`, style `new-york-v4`) and applies the one rewrite the
+CLI applies, turning the monorepo's registry paths into this project's `@/`
+alias. `cn` and `radix-ui` are published packages, so those imports are left
+alone and the files land **verbatim**.
+
+```sh
+npm run ui:add                 # refresh the components already vendored
+npm run ui:add dialog popover  # add new ones
+```
+
+Nothing in `src/components/ui` is edited by hand. Three files sit next to that
+directory and are compositions, not components — a `Card` with shadcn parts
+inside, no styling of their own:
+
+| File | What it holds |
+| --- | --- |
+| `board.tsx` | the board and its pipes, the one thing shadcn has no component for: a `Button` and a `Tooltip` around four Tailwind-drawn slots |
+| `json-card.tsx` | a payload in a `ScrollArea`, with copy / download / curl `Button`s |
+| `solution-card.tsx` | the solution stepper: a `Slider`, a `ButtonGroup` and a `Badge` per move |
+
+### The theme
+
+`src/index.css` is the only stylesheet, and it only carries a theme: Tailwind,
+`shadcn/tailwind.css`, the upstream `new-york-v4` light and dark palettes, and
+what this app adds on top —
+
+* `--pipe-*`, the twelve colors of the game. They are the puzzle's colors, not
+  the interface's, so they are the same in both themes; `src/game/colors.ts`
+  maps a color name onto them.
+* `--success` and `--attention`, the two states a board has that a neutral theme
+  has no token for: a legal destination or a settled pipe, and the pipe a pour
+  starts from.
+
+Dark is the default; the switch in the header is `next-themes`, which the
+vendored `sonner.tsx` already depends on.
+
 ## How it is put together
 
 ```
 src/
   api/        types, the fetch client, and the TanStack Query hooks
   game/       the rules mirrored in TypeScript, the palette, the draft model
-  components/ the board, a pipe, the solution stepper, the JSON panels
+  components/ ui/ (shadcn) + the three compositions above
+  lib/        cn, and the API error → sentence helper
   pages/      designer, solver, games, scenarios
   state/      the scenario being designed, kept in localStorage
 ```
@@ -79,4 +125,14 @@ answer belongs to the click that asked for it, not to a cache key.
 
 **Errors keep their code.** The API answers `{ "error": { "code", "message" } }`;
 `ApiError` carries both, so `illegal_move` and `solver_timeout` can be told
-apart from a network failure without parsing sentences.
+apart from a network failure without parsing sentences. They surface as a
+`sonner` toast, or as an `Alert` when they belong to the board on screen.
+
+### One known warning
+
+In **development**, React logs `Encountered a script tag while rendering React
+component` twice on boot. It comes from `next-themes`, which renders its
+no-flash script inside the provider; React 19 warns about that on the client.
+It is a dev-only check — the production build is clean — and the alternative
+would be hand-rolling a theme provider, which this front end deliberately does
+not do.

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.ui.tsbuildinfo"
+  },
+  "include": ["src/components/ui"],
+  "exclude": []
+}

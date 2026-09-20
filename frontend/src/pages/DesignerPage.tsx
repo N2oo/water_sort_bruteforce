@@ -8,17 +8,52 @@
  */
 
 import { useMemo, useRef, useState } from 'react'
+import {
+  AlertTriangle,
+  Dices,
+  Eraser,
+  FileJson,
+  FolderOpen,
+  Play,
+  Plus,
+  RotateCcw,
+  Save,
+  Trash2,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
-import { useCreateGame, useCreateScenario } from '../api/queries'
-import { API_BASE_URL } from '../api/client'
-import { BoardView } from '../components/BoardView'
-import { ErrorNotice, ProblemList } from '../components/Notices'
-import { JsonPanel } from '../components/JsonPanel'
-import { COLOR_NAMES, colorStyle, type ColorName } from '../game/colors'
-import { DEFAULT_GENERATOR, generateBoard, type GeneratorOptions } from '../game/generator'
-import { PIPE_CAPACITY } from '../game/rules'
-import { SAMPLES } from '../game/samples'
+import { API_BASE_URL } from '@/api/client'
+import { useCreateGame, useCreateScenario } from '@/api/queries'
+import { Board } from '@/components/board'
+import { JsonCard } from '@/components/json-card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/spinner'
+import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { COLOR_NAMES, colorStyle, type ColorName } from '@/game/colors'
+import { DEFAULT_GENERATOR, generateBoard, type GeneratorOptions } from '@/game/generator'
+import { PIPE_CAPACITY } from '@/game/rules'
+import { SAMPLES } from '@/game/samples'
+import { errorCode, explain } from '@/lib/errors'
 import {
   ImportError,
   countByColor,
@@ -32,8 +67,8 @@ import {
   toSolvePayload,
   validate,
   type Draft,
-} from '../game/scenario'
-import { useDraft } from '../state/draft'
+} from '@/game/scenario'
+import { useDraft } from '@/state/draft'
 
 type Brush = ColorName | 'erase'
 
@@ -45,7 +80,6 @@ export function DesignerPage() {
   const [saveName, setSaveName] = useState('')
   const [saveOnPlay, setSaveOnPlay] = useState(false)
   const [importText, setImportText] = useState('')
-  const [importError, setImportError] = useState<string | null>(null)
   const [generator, setGenerator] = useState<GeneratorOptions>(DEFAULT_GENERATOR)
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -58,17 +92,16 @@ export function DesignerPage() {
 
   /* ------------------------------------------------------------- editing */
 
-  const paint = (index: number) => {
-    updateDraft((current) => {
-      const pipes = current.pipes.map((pipe, position) => {
+  const paint = (index: number) =>
+    updateDraft((current) => ({
+      ...current,
+      pipes: current.pipes.map((pipe, position) => {
         if (position !== index) return pipe
         if (brush === 'erase') return { ...pipe, colors: pipe.colors.slice(0, -1) }
         if (pipe.colors.length >= PIPE_CAPACITY) return pipe
         return { ...pipe, colors: [...pipe.colors, brush] }
-      })
-      return { ...current, pipes }
-    })
-  }
+      }),
+    }))
 
   const clearPipe = (index: number) =>
     updateDraft((current) => ({
@@ -90,17 +123,15 @@ export function DesignerPage() {
       pipes: [...current.pipes, { label: `P${current.pipes.length + 1}`, colors: [] }],
     }))
 
-  const load = (next: Draft) => {
-    setDraft(next)
-    setImportError(null)
-  }
-
   const importJson = (text: string) => {
     try {
-      load(draftFromJson(text))
+      setDraft(draftFromJson(text))
       setImportText('')
+      toast.success('Board loaded')
     } catch (error) {
-      setImportError(error instanceof ImportError ? error.message : String(error))
+      toast.error('That JSON could not be read', {
+        description: error instanceof ImportError ? error.message : String(error),
+      })
     }
   }
 
@@ -117,225 +148,293 @@ export function DesignerPage() {
     const keep = saveOnPlay ? draft.name.trim() || 'Untitled scenario' : undefined
     createGame.mutate(toGamePayload(draft, keep), {
       onSuccess: (game) => navigate(`/games/${game.id}`),
+      onError: (error) => toast.error(errorCode(error), { description: explain(error) }),
     })
   }
 
-  const solve = () => navigate('/solve')
-
   const save = () => {
-    const payload = toScenarioPayload({ ...draft, name: saveName.trim() || draft.name })
-    createScenario.mutate(payload, {
+    createScenario.mutate(toScenarioPayload({ ...draft, name: saveName.trim() || draft.name }), {
       onSuccess: (scenario) => {
         updateDraft((current) => ({ ...current, name: scenario.name }))
         setSaveName('')
+        toast.success(`Saved as “${scenario.name}”`, {
+          description: scenario.id,
+          action: { label: 'Open', onClick: () => navigate('/scenarios') },
+        })
       },
+      onError: (error) => toast.error(errorCode(error), { description: explain(error) }),
     })
   }
 
+  const load = (next: Draft) => setDraft(next)
   const origin = API_BASE_URL || 'http://localhost:8080'
+  const fileStem = (draft.name || 'scenario').replace(/\s+/g, '-').toLowerCase()
 
   return (
-    <div className="page designer">
-      <section className="panel">
-        <header className="panel__header">
-          <div>
-            <h2>1 · Design your scenario</h2>
-            <p className="panel__hint">
-              Pick a color, click a pipe to pour one unit in. A pipe holds {PIPE_CAPACITY} units,
-              bottom first — exactly what the API stores.
-            </p>
-          </div>
-          <div className="panel__actions">
-            <button type="button" className="button--primary" disabled={blocked || createGame.isPending} onClick={play}>
-              {createGame.isPending ? 'starting…' : '▶ Play this scenario'}
-            </button>
-            <button type="button" className="button--primary" disabled={blocked} onClick={solve}>
-              ⚡ Generate a solution
-            </button>
-          </div>
-        </header>
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>1 · Design your scenario</CardTitle>
+          <CardDescription>
+            Pick a color, click a pipe to pour one unit in. A pipe holds {PIPE_CAPACITY} units,
+            bottom first — exactly what the API stores.
+          </CardDescription>
+          <CardAction className="flex flex-wrap gap-2">
+            <Button disabled={blocked || createGame.isPending} onClick={play}>
+              {createGame.isPending ? <Spinner /> : <Play />}
+              Play this scenario
+            </Button>
+            <Button variant="secondary" disabled={blocked} onClick={() => navigate('/solve')}>
+              <Zap />
+              Generate a solution
+            </Button>
+          </CardAction>
+        </CardHeader>
 
-        <label className="designer__keep">
-          <input
-            type="checkbox"
-            checked={saveOnPlay}
-            onChange={(event) => setSaveOnPlay(event.target.checked)}
-          />
-          save it as a scenario when I start the game
-        </label>
-
-        <ErrorNotice error={createGame.error} onDismiss={() => createGame.reset()} />
-
-        <div className="designer__identity">
-          <label>
-            <span>Name</span>
-            <input
-              value={draft.name}
-              placeholder="Level 145"
-              onChange={(event) => updateDraft((current) => ({ ...current, name: event.target.value }))}
-            />
-          </label>
-          <label>
-            <span>Description</span>
-            <input
-              value={draft.description}
-              placeholder="optional"
-              onChange={(event) =>
-                updateDraft((current) => ({ ...current, description: event.target.value }))
-              }
-            />
-          </label>
-        </div>
-
-        <div className="palette">
-          {COLOR_NAMES.map((color) => {
-            const style = colorStyle(color)
-            const used = counts.get(color) ?? 0
-            return (
-              <button
-                key={color}
-                type="button"
-                className={`palette__swatch ${brush === color ? 'palette__swatch--active' : ''}`}
-                style={{ background: style.fill, color: style.ink }}
-                onClick={() => setBrush(color)}
-                title={`${color} — ${used} unit(s) on the board`}
-              >
-                {color}
-                <span className="palette__count">{used}</span>
-              </button>
-            )
-          })}
-          <button
-            type="button"
-            className={`palette__swatch palette__swatch--erase ${brush === 'erase' ? 'palette__swatch--active' : ''}`}
-            onClick={() => setBrush('erase')}
-            title="remove the top unit of the pipe you click"
-          >
-            erase
-          </button>
-        </div>
-
-        <div className="designer__board">
-          {draft.pipes.map((pipe, index) => (
-            <div key={index} className="designer__pipe">
-              <BoardView pipes={[pipe]} onPipeClick={() => paint(index)} compact />
-              <div className="designer__pipe-actions">
-                <button type="button" onClick={() => clearPipe(index)} title="empty this pipe">
-                  empty
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removePipe(index)}
-                  title="remove this pipe from the board"
-                  disabled={draft.pipes.length <= 2}
-                >
-                  remove
-                </button>
-              </div>
-            </div>
-          ))}
-          <button type="button" className="designer__add" onClick={addPipe}>
-            + add a pipe
-          </button>
-        </div>
-
-        <ProblemList problems={problems} />
-
-        <div className="designer__toolbar">
-          <button type="button" onClick={() => updateDraft((c) => ({ ...c, pipes: relabel(c.pipes) }))}>
-            relabel P1…Pn
-          </button>
-          <button type="button" onClick={() => load({ ...emptyDraft(), name: draft.name })}>
-            clear the board
-          </button>
-          <button type="button" onClick={resetDraft}>
-            start over
-          </button>
-        </div>
-      </section>
-
-      <div className="columns">
-        <section className="panel">
-          <header className="panel__header">
-            <div>
-              <h3>Start from something</h3>
-              <p className="panel__hint">A shipped level, a random solvable board, or your own JSON.</p>
-            </div>
-          </header>
-
-          <div className="designer__samples">
-            {SAMPLES.map((sample) => (
-              <button key={sample.name} type="button" onClick={() => load(structuredClone(sample))}>
-                {sample.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="generator">
-            <label>
-              <span>colors</span>
-              <input
-                type="number"
-                min={1}
-                max={COLOR_NAMES.length}
-                value={generator.colors}
+        <CardContent className="flex flex-col gap-6">
+          <FieldGroup className="sm:flex-row">
+            <Field>
+              <FieldLabel htmlFor="scenario-name">Name</FieldLabel>
+              <Input
+                id="scenario-name"
+                value={draft.name}
+                placeholder="Level 145"
                 onChange={(event) =>
-                  setGenerator((current) => ({ ...current, colors: Number(event.target.value) }))
+                  updateDraft((current) => ({ ...current, name: event.target.value }))
                 }
               />
-            </label>
-            <label>
-              <span>empty pipes</span>
-              <input
-                type="number"
-                min={1}
-                max={6}
-                value={generator.emptyPipes}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="scenario-description">Description</FieldLabel>
+              <Input
+                id="scenario-description"
+                value={draft.description}
+                placeholder="optional"
                 onChange={(event) =>
-                  setGenerator((current) => ({ ...current, emptyPipes: Number(event.target.value) }))
+                  updateDraft((current) => ({ ...current, description: event.target.value }))
                 }
               />
-            </label>
-            <label>
-              <span>shuffles</span>
-              <input
-                type="number"
-                min={1}
-                max={400}
-                value={generator.shuffles}
-                onChange={(event) =>
-                  setGenerator((current) => ({ ...current, shuffles: Number(event.target.value) }))
-                }
-              />
-            </label>
-            <button
-              type="button"
-              onClick={() =>
-                load({
-                  name: draft.name || 'Generated board',
-                  description: `${generator.colors} colors, ${generator.emptyPipes} spare pipes`,
-                  pipes: generateBoard(generator),
-                })
-              }
+            </Field>
+          </FieldGroup>
+
+          <Field>
+            <FieldLabel>Palette</FieldLabel>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={brush}
+              onValueChange={(value) => value && setBrush(value as Brush)}
+              className="flex-wrap"
             >
-              🎲 generate a solvable board
-            </button>
+              {COLOR_NAMES.map((color) => {
+                const style = colorStyle(color)
+                return (
+                  <ToggleGroupItem
+                    key={color}
+                    value={color}
+                    aria-label={color}
+                    className="data-[state=on]:ring-ring h-8 gap-2 px-3 text-xs font-semibold data-[state=on]:ring-2"
+                    style={{ background: style.fill, color: style.ink }}
+                  >
+                    {color}
+                    <span className="opacity-60">{counts.get(color) ?? 0}</span>
+                  </ToggleGroupItem>
+                )
+              })}
+              <ToggleGroupItem value="erase" aria-label="erase" className="h-8 gap-2 px-3 text-xs">
+                <Eraser />
+                Erase
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <FieldDescription>
+              Clicking a pipe pours one unit of the selected color; “Erase” removes the top one.
+            </FieldDescription>
+          </Field>
+
+          <div className="flex flex-wrap items-end gap-3">
+            {draft.pipes.map((pipe, index) => (
+              <div key={index} className="flex flex-col items-center gap-1">
+                <Board pipes={[pipe]} onPipeClick={() => paint(index)} />
+                <ButtonGroup>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon-xs"
+                        onClick={() => clearPipe(index)}
+                        aria-label={`empty ${pipe.label}`}
+                      >
+                        <Eraser />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Empty this pipe</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon-xs"
+                        onClick={() => removePipe(index)}
+                        disabled={draft.pipes.length <= 2}
+                        aria-label={`remove ${pipe.label}`}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove this pipe from the board</TooltipContent>
+                  </Tooltip>
+                </ButtonGroup>
+              </div>
+            ))}
+            <Button variant="outline" className="border-dashed" onClick={addPipe}>
+              <Plus />
+              Add a pipe
+            </Button>
           </div>
 
-          <div className="import">
-            <textarea
-              value={importText}
-              placeholder='{"pipes": {"P1": ["Blue", "Red"], "P2": []}}'
-              rows={5}
-              onChange={(event) => setImportText(event.target.value)}
-            />
-            <div className="import__actions">
-              <button type="button" disabled={!importText.trim()} onClick={() => importJson(importText)}>
-                load this JSON
-              </button>
-              <button type="button" onClick={() => fileInput.current?.click()}>
-                open a file…
-              </button>
+          {problems.map((problem, index) => (
+            <Alert key={index} variant={problem.severity === 'error' ? 'destructive' : 'default'}>
+              {problem.severity === 'error' ? <XCircle /> : <AlertTriangle />}
+              <AlertTitle>{problem.severity === 'error' ? 'The API would refuse this board' : 'This board has no solution'}</AlertTitle>
+              <AlertDescription>{problem.message}</AlertDescription>
+            </Alert>
+          ))}
+        </CardContent>
+
+        <CardFooter className="flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => updateDraft((current) => ({ ...current, pipes: relabel(current.pipes) }))}
+          >
+            Relabel P1…Pn
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => load({ ...emptyDraft(), name: draft.name })}>
+            Clear the board
+          </Button>
+          <Button variant="outline" size="sm" onClick={resetDraft}>
+            <RotateCcw />
+            Start over
+          </Button>
+        </CardFooter>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Start from something</CardTitle>
+            <CardDescription>
+              A shipped level, a random solvable board, or your own JSON.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="flex flex-col gap-5">
+            <ButtonGroup>
+              {SAMPLES.map((sample) => (
+                <Button
+                  key={sample.name}
+                  variant="outline"
+                  onClick={() => load(structuredClone(sample))}
+                >
+                  <FileJson />
+                  {sample.name}
+                </Button>
+              ))}
+            </ButtonGroup>
+
+            <Separator />
+
+            <FieldGroup>
+              <div className="grid grid-cols-3 gap-3">
+                <Field>
+                  <FieldLabel htmlFor="generator-colors">Colors</FieldLabel>
+                  <Input
+                    id="generator-colors"
+                    type="number"
+                    min={1}
+                    max={COLOR_NAMES.length}
+                    value={generator.colors}
+                    onChange={(event) =>
+                      setGenerator((current) => ({ ...current, colors: Number(event.target.value) }))
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="generator-empty">Empty pipes</FieldLabel>
+                  <Input
+                    id="generator-empty"
+                    type="number"
+                    min={1}
+                    max={6}
+                    value={generator.emptyPipes}
+                    onChange={(event) =>
+                      setGenerator((current) => ({
+                        ...current,
+                        emptyPipes: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="generator-shuffles">Shuffles</FieldLabel>
+                  <Input
+                    id="generator-shuffles"
+                    type="number"
+                    min={1}
+                    max={400}
+                    value={generator.shuffles}
+                    onChange={(event) =>
+                      setGenerator((current) => ({
+                        ...current,
+                        shuffles: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  load({
+                    name: draft.name || 'Generated board',
+                    description: `${generator.colors} colors, ${generator.emptyPipes} spare pipes`,
+                    pipes: generateBoard(generator),
+                  })
+                }
+              >
+                <Dices />
+                Generate a solvable board
+              </Button>
+              <FieldDescription>
+                Pours are undone from the solved board, so whatever comes out has a solution.
+              </FieldDescription>
+            </FieldGroup>
+
+            <Separator />
+
+            <Field>
+              <FieldLabel htmlFor="import-json">Paste a board</FieldLabel>
+              <Textarea
+                id="import-json"
+                rows={5}
+                className="font-mono text-xs"
+                value={importText}
+                placeholder='{"pipes": {"P1": ["Blue", "Red"], "P2": []}}'
+                onChange={(event) => setImportText(event.target.value)}
+              />
+              <ButtonGroup>
+                <Button
+                  variant="outline"
+                  disabled={!importText.trim()}
+                  onClick={() => importJson(importText)}
+                >
+                  Load this JSON
+                </Button>
+                <Button variant="outline" onClick={() => fileInput.current?.click()}>
+                  <FolderOpen />
+                  Open a file…
+                </Button>
+              </ButtonGroup>
               <input
                 ref={fileInput}
                 type="file"
@@ -343,66 +442,66 @@ export function DesignerPage() {
                 hidden
                 onChange={(event) => void openFile(event.target.files?.[0])}
               />
-            </div>
-            {importError ? <ErrorNotice error={new Error(importError)} onDismiss={() => setImportError(null)} /> : null}
-          </div>
-        </section>
+            </Field>
+          </CardContent>
+        </Card>
 
-        <section className="panel">
-          <header className="panel__header">
-            <div>
-              <h3>Save it for later</h3>
-              <p className="panel__hint">
-                A saved scenario can be replayed, solved and listed under <code>Scenarios</code>.
-              </p>
-            </div>
-          </header>
+        <Card>
+          <CardHeader>
+            <CardTitle>Save it for later</CardTitle>
+            <CardDescription>
+              A saved scenario can be replayed, solved and listed under Scenarios.
+            </CardDescription>
+          </CardHeader>
 
-          <div className="save">
-            <input
-              value={saveName}
-              placeholder={draft.name || 'scenario name'}
-              onChange={(event) => setSaveName(event.target.value)}
-            />
-            <button
-              type="button"
-              disabled={blocked || createScenario.isPending}
-              onClick={save}
-            >
-              {createScenario.isPending ? 'saving…' : 'save as scenario'}
-            </button>
-          </div>
+          <CardContent className="flex flex-col gap-4">
+            <Field orientation="responsive">
+              <Input
+                value={saveName}
+                placeholder={draft.name || 'scenario name'}
+                onChange={(event) => setSaveName(event.target.value)}
+                aria-label="scenario name"
+              />
+              <Button disabled={blocked || createScenario.isPending} onClick={save}>
+                {createScenario.isPending ? <Spinner /> : <Save />}
+                Save as scenario
+              </Button>
+            </Field>
 
-          {createScenario.isSuccess ? (
-            <div className="notice notice--ok">
-              saved as <strong>{createScenario.data.name}</strong>{' '}
-              <code>{createScenario.data.id}</code>
-            </div>
-          ) : null}
-          <ErrorNotice error={createScenario.error} onDismiss={() => createScenario.reset()} />
-        </section>
+            <Field orientation="horizontal">
+              <Checkbox
+                id="save-on-play"
+                checked={saveOnPlay}
+                onCheckedChange={(checked) => setSaveOnPlay(checked === true)}
+              />
+              <FieldLabel htmlFor="save-on-play" className="font-normal">
+                Save it as a scenario when I start the game
+              </FieldLabel>
+            </Field>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="columns">
-        <JsonPanel
+      <div className="grid gap-6 xl:grid-cols-3">
+        <JsonCard
           title="Scenario payload"
-          hint="POST /api/v1/scenarios"
+          description="POST /api/v1/scenarios"
           value={toScenarioPayload(draft)}
-          fileName={`${(draft.name || 'scenario').replace(/\s+/g, '-').toLowerCase()}.json`}
+          fileName={`${fileStem}.json`}
           curl={`curl -sX POST ${origin}/api/v1/scenarios \\\n  -H 'content-type: application/json' \\\n  -d '${JSON.stringify(toScenarioPayload(draft))}'`}
         />
-        <JsonPanel
+        <JsonCard
           title="Solve payload"
-          hint="POST /api/v1/puzzles/solve — nothing is stored"
+          description="POST /api/v1/puzzles/solve"
           value={toSolvePayload(draft)}
           fileName="solve-request.json"
           curl={`curl -sX POST ${origin}/api/v1/puzzles/solve \\\n  -H 'content-type: application/json' \\\n  -d '${JSON.stringify(toSolvePayload(draft))}'`}
         />
-        <JsonPanel
+        <JsonCard
           title="Level file"
-          hint="the historical shape, accepted by the CLI and the API alike"
+          description="level file — the historical shape"
           value={toLevelDocument(draft)}
-          fileName={`${(draft.name || 'level').replace(/\s+/g, '-').toLowerCase()}.json`}
+          fileName={`${fileStem}-level.json`}
         />
       </div>
     </div>

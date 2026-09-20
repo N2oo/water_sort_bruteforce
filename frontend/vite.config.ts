@@ -1,5 +1,8 @@
+import path from 'node:path'
+
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 /**
  * In development the app talks to the API through this proxy, so the browser
@@ -10,7 +13,11 @@ import react from '@vitejs/plugin-react'
 const target = process.env.API_PROXY_TARGET ?? 'http://localhost:8080'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    // The alias shadcn/ui generates its imports against.
+    alias: { '@': path.resolve(import.meta.dirname, './src') },
+  },
   server: {
     port: 5173,
     proxy: {

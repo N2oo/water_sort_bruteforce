@@ -3,27 +3,37 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
-  "description": "React front end for the water sort API: design a scenario, play it, solve it.",
+  "description": "React front end for the water sort API, built on shadcn/ui: design a scenario, play it, solve it.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false",
     "lint": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ui:add": "node scripts/fetch-shadcn.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",
     "@tanstack/react-query-devtools": "^5.62.7",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.3.0",
+    "lucide-react": "^1.47.0",
+    "next-themes": "^0.4.6",
+    "radix-ui": "^1.6.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.1"
+    "react-router-dom": "^7.1.1",
+    "sonner": "^2.0.8",
+    "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
+    "shadcn": "^4.21.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "~5.7.2",
     "vite": "^6.0.5",
     "vitest": "^3.2.7"

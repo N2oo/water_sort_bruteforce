@@ -8,7 +8,17 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import {
+  Ban,
+  CircleCheck,
+  PartyPopper,
+  Pencil,
+  RotateCcw,
+  Undo2,
+  Zap,
+} from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import {
   useGame,
@@ -17,13 +27,43 @@ import {
   useResetGame,
   useRollBack,
   useSolveGame,
-} from '../api/queries'
-import { BoardView } from '../components/BoardView'
-import { EmptyState, ErrorNotice, Spinner } from '../components/Notices'
-import { SolutionPanel } from '../components/SolutionPanel'
-import { JsonPanel } from '../components/JsonPanel'
-import { finishedPipes, isDeadEnd, legalTargets } from '../game/rules'
-import type { Solution } from '../api/types'
+} from '@/api/queries'
+import { Board } from '@/components/board'
+import { JsonCard } from '@/components/json-card'
+import { SolutionCard } from '@/components/solution-card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
+import type { Solution } from '@/api/types'
+import { finishedPipes, isDeadEnd, legalTargets } from '@/game/rules'
+import { errorCode, explain } from '@/lib/errors'
+
+function Stat({ value, label }: { value: React.ReactNode; label: React.ReactNode }) {
+  return (
+    <Card className="flex-1 gap-0 py-4">
+      <CardContent className="px-4">
+        <p className="text-xl font-semibold">{value}</p>
+        <p className="text-muted-foreground text-xs">{label}</p>
+      </CardContent>
+    </Card>
+  )
+}
 
 export function PlayPage() {
   const { gameId } = useParams<{ gameId: string }>()
@@ -40,7 +80,7 @@ export function PlayPage() {
   const [solution, setSolution] = useState<Solution | null>(null)
   const [rollbackSteps, setRollbackSteps] = useState(1)
 
-  const pipes = game.data?.pipes ?? []
+  const pipes = useMemo(() => game.data?.pipes ?? [], [game.data])
   const board = useMemo(() => pipes.map((pipe) => pipe.colors), [pipes])
   const targets = useMemo(
     () => (selected === null ? [] : legalTargets(board, selected)),
@@ -54,20 +94,38 @@ export function PlayPage() {
   // A solution describes the board it was asked about, not the one after it.
   useEffect(() => setSolution(null), [game.data?.moves_played])
 
-  if (game.isPending) return <Spinner label="loading the game…" />
+  const fail = (error: unknown) => toast.error(errorCode(error), { description: explain(error) })
+
+  if (game.isPending) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    )
+  }
+
   if (game.isError || !game.data) {
     return (
-      <div className="page">
-        <ErrorNotice error={game.error} />
-        <EmptyState title="This game could not be opened">
-          <Link to="/games">back to the games</Link>
-        </EmptyState>
-      </div>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Ban />
+          </EmptyMedia>
+          <EmptyTitle>This game could not be opened</EmptyTitle>
+          <EmptyDescription>{explain(game.error)}</EmptyDescription>
+        </EmptyHeader>
+        <Button variant="outline" asChild>
+          <Link to="/games">Back to the games</Link>
+        </Button>
+      </Empty>
     )
   }
 
   const session = game.data
   const stuck = !session.solved && isDeadEnd(board)
+  const busy = play.isPending || rollBack.isPending || reset.isPending
 
   const click = (index: number) => {
     if (session.solved) return
@@ -86,172 +144,184 @@ export function PlayPage() {
     }
     play.mutate([{ from: pipes[selected].id, to: pipes[index].id }], {
       onSettled: () => setSelected(null),
+      onError: fail,
     })
   }
 
-  const busy = play.isPending || rollBack.isPending || reset.isPending
-
   return (
-    <div className="page play">
-      <section className="panel">
-        <header className="panel__header">
-          <div>
-            <h2>{session.name || 'Game'}</h2>
-            <p className="panel__hint">
-              <code>{session.id}</code>
-              {session.scenario_id ? ' · from a saved scenario' : ' · from a submitted board'}
-            </p>
-          </div>
-          <div className="panel__actions">
-            <button type="button" onClick={() => navigate('/design')}>
-              design another
-            </button>
-          </div>
-        </header>
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>{session.name || 'Game'}</CardTitle>
+          <CardDescription className="font-mono text-xs">
+            {session.id} · {session.scenario_id ? 'from a saved scenario' : 'from a submitted board'}
+          </CardDescription>
+          <CardAction>
+            <Button variant="outline" size="sm" onClick={() => navigate('/design')}>
+              <Pencil />
+              Design another
+            </Button>
+          </CardAction>
+        </CardHeader>
 
-        <div className="stats">
-          <div className={`stats__item ${session.solved ? 'stats__item--good' : ''}`}>
-            <span className="stats__value">{session.status}</span>
-            <span className="stats__label">status</span>
+        <CardContent className="flex flex-col gap-5">
+          <div className="flex flex-wrap gap-3">
+            <Stat
+              value={<Badge variant={session.solved ? 'default' : 'secondary'}>{session.status}</Badge>}
+              label="status"
+            />
+            <Stat value={session.moves_played} label="moves played" />
+            <Stat value={`${finishedPipes(board)} / ${colorsOnBoard}`} label="colors sorted" />
+            <Stat value={session.completed_pipes} label={<code>completed_pipes</code>} />
           </div>
-          <div className="stats__item">
-            <span className="stats__value">{session.moves_played}</span>
-            <span className="stats__label">moves played</span>
-          </div>
-          <div className="stats__item">
-            <span className="stats__value">
-              {finishedPipes(board)} / {colorsOnBoard}
-            </span>
-            <span className="stats__label">colors sorted</span>
-          </div>
-          <div className="stats__item">
-            <span className="stats__value">{session.completed_pipes}</span>
-            <span className="stats__label">
-              <code>completed_pipes</code>
-            </span>
-          </div>
-        </div>
 
-        {session.solved ? (
-          <div className="notice notice--ok">
-            Solved in {session.moves_played} moves. Roll back or reset to try a shorter line.
-          </div>
-        ) : null}
-        {stuck ? (
-          <div className="notice notice--warn">
-            No legal move is left on this board — roll back a move or reset the game.
-          </div>
-        ) : null}
+          {session.solved ? (
+            <Alert>
+              <PartyPopper />
+              <AlertTitle>Solved in {session.moves_played} moves</AlertTitle>
+              <AlertDescription>Roll back or reset to try a shorter line.</AlertDescription>
+            </Alert>
+          ) : null}
 
-        <ErrorNotice error={play.error} onDismiss={() => play.reset()} />
-        <ErrorNotice error={rollBack.error} onDismiss={() => rollBack.reset()} />
+          {stuck ? (
+            <Alert variant="destructive">
+              <Ban />
+              <AlertTitle>No legal move is left on this board</AlertTitle>
+              <AlertDescription>Roll back a move, or reset the game.</AlertDescription>
+            </Alert>
+          ) : null}
 
-        <p className="play__hint">
-          {selected === null
-            ? 'Click the pipe to pour from.'
-            : `Pouring from ${pipes[selected].label} — click a highlighted pipe, or click it again to cancel.`}
-        </p>
+          <p className="text-muted-foreground text-sm">
+            {selected === null
+              ? 'Click the pipe to pour from.'
+              : `Pouring from ${pipes[selected].label} — click a highlighted pipe, or click it again to cancel.`}
+          </p>
 
-        <BoardView
-          pipes={pipes}
-          selected={selected}
-          targets={targets}
-          onPipeClick={click}
-          disabled={busy || session.solved}
-        />
+          <Board
+            pipes={pipes}
+            selected={selected}
+            targets={targets}
+            onPipeClick={click}
+            disabled={busy || session.solved}
+          />
+        </CardContent>
 
-        <div className="play__controls">
-          <button
-            type="button"
+        <CardFooter className="flex-wrap gap-2">
+          <Button
+            variant="outline"
             disabled={busy || session.moves_played === 0}
-            onClick={() => rollBack.mutate(1)}
+            onClick={() => rollBack.mutate(1, { onError: fail })}
           >
-            ↶ undo the last move
-          </button>
-          <label className="play__steps">
-            <input
+            <Undo2 />
+            Undo the last move
+          </Button>
+
+          <ButtonGroup>
+            <Input
               type="number"
               min={1}
               max={Math.max(1, session.moves_played)}
               value={rollbackSteps}
+              className="w-20"
+              aria-label="moves to roll back"
               onChange={(event) => setRollbackSteps(Math.max(1, Number(event.target.value)))}
             />
-            <button
-              type="button"
+            <Button
+              variant="outline"
               disabled={busy || session.moves_played === 0}
-              onClick={() => rollBack.mutate(rollbackSteps)}
+              onClick={() => rollBack.mutate(rollbackSteps, { onError: fail })}
             >
-              roll back
-            </button>
-          </label>
-          <button
-            type="button"
-            disabled={busy || session.moves_played === 0}
-            onClick={() => reset.mutate()}
-          >
-            ⟲ reset
-          </button>
-          <button
-            type="button"
-            className="button--primary"
-            disabled={solve.isPending || session.solved}
-            onClick={() => solve.mutate(undefined, { onSuccess: setSolution })}
-          >
-            {solve.isPending ? <Spinner label="solving…" /> : '⚡ solve from here'}
-          </button>
-        </div>
+              Roll back
+            </Button>
+          </ButtonGroup>
 
-        <ErrorNotice error={solve.error} onDismiss={() => solve.reset()} />
-      </section>
+          <Button
+            variant="outline"
+            disabled={busy || session.moves_played === 0}
+            onClick={() => reset.mutate(undefined, { onError: fail })}
+          >
+            <RotateCcw />
+            Reset
+          </Button>
+
+          <Button
+            className="ml-auto"
+            disabled={solve.isPending || session.solved}
+            onClick={() => solve.mutate(undefined, { onSuccess: setSolution, onError: fail })}
+          >
+            {solve.isPending ? <Spinner /> : <Zap />}
+            Solve from here
+          </Button>
+        </CardFooter>
+      </Card>
 
       {solution ? (
-        <SolutionPanel
+        <SolutionCard
           solution={solution}
           pipes={pipes}
           applying={play.isPending}
-          applyLabel="play every move on this game"
-          onApply={(moves) => play.mutate(moves)}
+          applyLabel="Play every move on this game"
+          onApply={(moves) => play.mutate(moves, { onError: fail })}
         />
       ) : null}
 
-      <section className="panel">
-        <header className="panel__header">
-          <div>
-            <h3>History</h3>
-            <p className="panel__hint">
-              A rolled back move leaves this list for good — the next move takes its number.
-            </p>
-          </div>
-        </header>
+      <Card>
+        <CardHeader>
+          <CardTitle>History</CardTitle>
+          <CardDescription>
+            A rolled back move leaves this list for good — the next move takes its number.
+          </CardDescription>
+        </CardHeader>
 
-        {history.isPending ? <Spinner label="loading the history…" /> : null}
-        {history.data && history.data.length === 0 ? (
-          <p className="panel__hint">No move played yet.</p>
-        ) : null}
+        <CardContent>
+          {history.isPending ? <Skeleton className="h-24 w-full" /> : null}
 
-        <ol className="history">
-          {history.data?.map((move) => (
-            <li key={move.id} className="history__item">
-              <span className="history__index">{move.sequence}</span>
-              <span className="history__notation">{move.notation}</span>
-              {move.board_after ? (
-                <BoardView
-                  pipes={move.board_after.map((pipe) => ({
-                    id: pipe.id,
-                    label: pipe.label,
-                    colors: pipe.colors,
-                  }))}
-                  compact
-                />
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      </section>
+          {history.data && history.data.length === 0 ? (
+            <Empty className="border border-dashed">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CircleCheck />
+                </EmptyMedia>
+                <EmptyTitle>No move played yet</EmptyTitle>
+                <EmptyDescription>Pour from one pipe into another to get going.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : null}
 
-      <JsonPanel
+          {history.data && history.data.length > 0 ? (
+            <ScrollArea className="h-96 rounded-md border">
+              <ItemGroup className="p-2">
+                {history.data.map((move) => (
+                  <Item key={move.id} variant="muted" className="mb-2">
+                    <ItemMedia>
+                      <Badge variant="outline" className="font-mono">
+                        {move.sequence}
+                      </Badge>
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle className="font-mono">{move.notation}</ItemTitle>
+                      {move.board_after ? (
+                        <Board
+                          pipes={move.board_after.map((pipe) => ({
+                            id: pipe.id,
+                            label: pipe.label,
+                            colors: pipe.colors,
+                          }))}
+                          size="sm"
+                        />
+                      ) : null}
+                    </ItemContent>
+                  </Item>
+                ))}
+              </ItemGroup>
+            </ScrollArea>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <JsonCard
         title="The game, as the API sees it"
-        hint={`GET /api/v1/games/${session.id}`}
+        description={`GET /api/v1/games/${session.id}`}
         value={session}
         fileName="game.json"
       />

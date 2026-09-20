@@ -7,13 +7,38 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, PencilLine, Play, XCircle, Zap } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
-import { useCreateGame, useScenarios, useSolvePuzzle, useSolveScenario } from '../api/queries'
-import { BoardView } from '../components/BoardView'
-import { ErrorNotice, ProblemList, Spinner } from '../components/Notices'
-import { JsonPanel } from '../components/JsonPanel'
-import { SolutionPanel } from '../components/SolutionPanel'
+import { useCreateGame, useScenarios, useSolvePuzzle, useSolveScenario } from '@/api/queries'
+import { Board } from '@/components/board'
+import { JsonCard } from '@/components/json-card'
+import { SolutionCard } from '@/components/solution-card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import type { Solution } from '@/api/types'
+import { errorCode, explain } from '@/lib/errors'
 import {
   ImportError,
   draftFromJson,
@@ -22,9 +47,8 @@ import {
   toGamePayload,
   toSolvePayload,
   validate,
-} from '../game/scenario'
-import { useDraft } from '../state/draft'
-import type { Solution } from '../api/types'
+} from '@/game/scenario'
+import { useDraft } from '@/state/draft'
 
 type Source = 'draft' | 'scenario' | 'json'
 
@@ -37,7 +61,6 @@ export function SolvePage() {
   const [source, setSource] = useState<Source>(scenarioParam ? 'scenario' : 'draft')
   const [scenarioId, setScenarioId] = useState(scenarioParam)
   const [jsonText, setJsonText] = useState('')
-  const [jsonError, setJsonError] = useState<string | null>(null)
   const [solution, setSolution] = useState<Solution | null>(null)
 
   const scenarios = useScenarios({ limit: 100 })
@@ -49,7 +72,9 @@ export function SolvePage() {
   const board = useMemo(() => {
     if (source === 'scenario') {
       const scenario = scenarios.data?.find((entry) => entry.id === scenarioId)
-      return scenario ? draftFromPipes(scenario.pipes, scenario.name, scenario.description ?? '') : null
+      return scenario
+        ? draftFromPipes(scenario.pipes, scenario.name, scenario.description ?? '')
+        : null
     }
     if (source === 'json') {
       if (!jsonText.trim()) return null
@@ -65,18 +90,19 @@ export function SolvePage() {
   const problems = useMemo(() => (board ? validate(board) : []), [board])
   const blocked = !board || hasErrors(problems)
   const pending = solvePuzzle.isPending || solveScenario.isPending
-  const error = solvePuzzle.error ?? solveScenario.error
 
   // A fresh board invalidates the solution shown next to it.
   useEffect(() => setSolution(null), [source, scenarioId, jsonText, draft])
 
+  const fail = (error: unknown) => toast.error(errorCode(error), { description: explain(error) })
+
   const run = () => {
     if (!board) return
     if (source === 'scenario' && scenarioId) {
-      solveScenario.mutate(scenarioId, { onSuccess: setSolution })
+      solveScenario.mutate(scenarioId, { onSuccess: setSolution, onError: fail })
       return
     }
-    solvePuzzle.mutate(toSolvePayload(board).puzzle, { onSuccess: setSolution })
+    solvePuzzle.mutate(toSolvePayload(board).puzzle, { onSuccess: setSolution, onError: fail })
   }
 
   const play = () => {
@@ -85,145 +111,147 @@ export function SolvePage() {
       source === 'scenario' && scenarioId
         ? { scenario_id: scenarioId, name: board.name || undefined }
         : toGamePayload(board),
-      { onSuccess: (game) => navigate(`/games/${game.id}`) },
+      { onSuccess: (game) => navigate(`/games/${game.id}`), onError: fail },
     )
   }
 
-  const loadJson = () => {
+  const openInDesigner = () => {
     try {
       setDraft(draftFromJson(jsonText))
-      setSource('draft')
-      setJsonError(null)
       navigate('/design')
-    } catch (cause) {
-      setJsonError(cause instanceof ImportError ? cause.message : String(cause))
+    } catch (error) {
+      toast.error('That JSON could not be read', {
+        description: error instanceof ImportError ? error.message : String(error),
+      })
     }
   }
 
   return (
-    <div className="page solve">
-      <section className="panel">
-        <header className="panel__header">
-          <div>
-            <h2>2 · Generate a solution</h2>
-            <p className="panel__hint">
-              The solver is the original exhaustive search. It answers in milliseconds on the shipped
-              levels; a hostile board can hit <code>SOLVER_TIMEOUT_SECONDS</code> instead.
-            </p>
-          </div>
-          <div className="panel__actions">
-            <button type="button" className="button--primary" disabled={blocked || pending} onClick={run}>
-              {pending ? <Spinner label="solving…" /> : '⚡ Solve this board'}
-            </button>
-            <button type="button" disabled={blocked || createGame.isPending} onClick={play}>
-              {createGame.isPending ? 'starting…' : '▶ Play it instead'}
-            </button>
-          </div>
-        </header>
-
-        <div className="tabs" role="tablist">
-          {(
-            [
-              ['draft', 'the board I designed'],
-              ['scenario', 'a saved scenario'],
-              ['json', 'JSON I paste'],
-            ] as Array<[Source, string]>
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={source === value}
-              className={`tabs__tab ${source === value ? 'tabs__tab--active' : ''}`}
-              onClick={() => setSource(value)}
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>2 · Generate a solution</CardTitle>
+          <CardDescription>
+            The solver is the original exhaustive search. It answers in milliseconds on the shipped
+            levels; a hostile board can hit <code className="font-mono">SOLVER_TIMEOUT_SECONDS</code>{' '}
+            instead.
+          </CardDescription>
+          <CardAction className="flex flex-wrap gap-2">
+            <Button disabled={blocked || pending} onClick={run}>
+              {pending ? <Spinner /> : <Zap />}
+              Solve this board
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={blocked || createGame.isPending}
+              onClick={play}
             >
-              {label}
-            </button>
-          ))}
-        </div>
+              {createGame.isPending ? <Spinner /> : <Play />}
+              Play it instead
+            </Button>
+          </CardAction>
+        </CardHeader>
 
-        {source === 'scenario' ? (
-          <div className="solve__scenario">
-            <select
-              value={scenarioId}
-              onChange={(event) => {
-                setScenarioId(event.target.value)
-                setParams(event.target.value ? { scenario: event.target.value } : {})
-              }}
-            >
-              <option value="">— pick a saved scenario —</option>
-              {scenarios.data?.map((scenario) => (
-                <option key={scenario.id} value={scenario.id}>
-                  {scenario.name} · {scenario.pipes.length} pipes
-                </option>
-              ))}
-            </select>
-            {scenarios.isPending ? <Spinner label="loading scenarios…" /> : null}
-            <ErrorNotice error={scenarios.error} />
-          </div>
-        ) : null}
+        <CardContent className="flex flex-col gap-5">
+          <Tabs value={source} onValueChange={(value) => setSource(value as Source)}>
+            <TabsList className="w-full sm:w-fit">
+              <TabsTrigger value="draft">Designed board</TabsTrigger>
+              <TabsTrigger value="scenario">Saved scenario</TabsTrigger>
+              <TabsTrigger value="json">Pasted JSON</TabsTrigger>
+            </TabsList>
 
-        {source === 'json' ? (
-          <div className="import">
-            <textarea
-              rows={8}
-              value={jsonText}
-              placeholder='{"pipes": {"P1": ["Blue", "Blue", "Red", "Red"], "P2": ["Red", "Red", "Blue", "Blue"], "P3": []}}'
-              onChange={(event) => {
-                setJsonText(event.target.value)
-                setJsonError(null)
-              }}
-            />
-            <div className="import__actions">
-              <button type="button" disabled={!jsonText.trim()} onClick={loadJson}>
-                open it in the designer
-              </button>
+            <TabsContent value="scenario" className="pt-4">
+              {scenarios.isPending ? (
+                <Skeleton className="h-9 w-72" />
+              ) : (
+                <Field>
+                  <FieldLabel htmlFor="scenario-picker">Saved scenario</FieldLabel>
+                  <Select
+                    value={scenarioId}
+                    onValueChange={(value) => {
+                      setScenarioId(value)
+                      setParams(value ? { scenario: value } : {})
+                    }}
+                  >
+                    <SelectTrigger id="scenario-picker" className="w-full sm:w-96">
+                      <SelectValue placeholder="Pick a saved scenario…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scenarios.data?.map((scenario) => (
+                        <SelectItem key={scenario.id} value={scenario.id}>
+                          {scenario.name} · {scenario.pipes.length} pipes
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    Solved through <code className="font-mono">POST /scenarios/{'{id}'}/solve</code>,
+                    from its initial board.
+                  </FieldDescription>
+                </Field>
+              )}
+            </TabsContent>
+
+            <TabsContent value="json" className="pt-4">
+              <Field>
+                <FieldLabel htmlFor="solve-json">Board</FieldLabel>
+                <Textarea
+                  id="solve-json"
+                  rows={7}
+                  className="font-mono text-xs"
+                  value={jsonText}
+                  placeholder='{"pipes": {"P1": ["Blue","Blue","Red","Red"], "P2": ["Red","Red","Blue","Blue"], "P3": []}}'
+                  onChange={(event) => setJsonText(event.target.value)}
+                />
+                <Button variant="outline" disabled={!jsonText.trim()} onClick={openInDesigner}>
+                  <PencilLine />
+                  Open it in the designer
+                </Button>
+              </Field>
+            </TabsContent>
+          </Tabs>
+
+          {board ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="text-sm font-medium">{board.name || 'Untitled board'}</h3>
+              <Board pipes={board.pipes} size="sm" />
             </div>
-            {jsonError ? <ErrorNotice error={new Error(jsonError)} onDismiss={() => setJsonError(null)} /> : null}
-          </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">Pick a board above to solve it.</p>
+          )}
+
+          {problems.map((problem, index) => (
+            <Alert key={index} variant={problem.severity === 'error' ? 'destructive' : 'default'}>
+              {problem.severity === 'error' ? <XCircle /> : <AlertTriangle />}
+              <AlertTitle>
+                {problem.severity === 'error' ? 'The API would refuse this board' : 'This board has no solution'}
+              </AlertTitle>
+              <AlertDescription>{problem.message}</AlertDescription>
+            </Alert>
+          ))}
+        </CardContent>
+      </Card>
+
+      {solution && board ? <SolutionCard solution={solution} pipes={board.pipes} /> : null}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {solution?.solved ? (
+          <JsonCard
+            title="The solution, as the API returned it"
+            description="the moves can be posted back to POST /api/v1/games/{id}/moves"
+            value={solution}
+            fileName="solution.json"
+          />
         ) : null}
-
         {board ? (
-          <>
-            <h3 className="solve__board-title">{board.name || 'Untitled board'}</h3>
-            <BoardView pipes={board.pipes} compact />
-            <ProblemList problems={problems} />
-          </>
-        ) : (
-          <p className="panel__hint">Pick a board above to solve it.</p>
-        )}
-
-        <ErrorNotice
-          error={error}
-          onDismiss={() => {
-            solvePuzzle.reset()
-            solveScenario.reset()
-          }}
-        />
-        <ErrorNotice error={createGame.error} onDismiss={() => createGame.reset()} />
-      </section>
-
-      {solution && board ? (
-        <SolutionPanel solution={solution} pipes={board.pipes} />
-      ) : null}
-
-      {solution?.solved ? (
-        <JsonPanel
-          title="The solution, as the API returned it"
-          hint="the moves can be posted straight back to POST /api/v1/games/{id}/moves"
-          value={solution}
-          fileName="solution.json"
-        />
-      ) : null}
-
-      {board ? (
-        <JsonPanel
-          title="Solve payload"
-          hint="POST /api/v1/puzzles/solve"
-          value={toSolvePayload(board)}
-          fileName="solve-request.json"
-        />
-      ) : null}
+          <JsonCard
+            title="Solve payload"
+            description="POST /api/v1/puzzles/solve"
+            value={toSolvePayload(board)}
+            fileName="solve-request.json"
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

@@ -12,7 +12,7 @@ crates/
   cli/        driving adapter: the command line solver
   api/        driving adapter: the HTTP API, plus its driven adapters
   migration/  the PostgreSQL schema (SeaORM migrations)
-frontend/     driving adapter: the React front end (Vite, TanStack Query)
+frontend/     driving adapter: the React front end (Vite, TanStack Query, shadcn/ui)
 levels/       the historical level files
 ```
 
@@ -224,7 +224,13 @@ The API decides every move: the client posts to `/games/{id}/moves` and draws
 the board that comes back. The copy of the rules in `frontend/src/game/rules.ts`
 only serves what cannot wait for a round trip — the legal targets of a selected
 pipe, a local replay of a solution, and the warnings the designer shows before
-a board is submitted. See [`frontend/README.md`](frontend/README.md).
+a board is submitted.
+
+Every control on screen is a [shadcn/ui](https://ui.shadcn.com) component,
+vendored into `frontend/src/components/ui` by the CLI (or by `npm run ui:add`,
+which fetches the same sources when `ui.shadcn.com` is unreachable). The only
+stylesheet is `frontend/src/index.css`, and it carries a theme and nothing else.
+See [`frontend/README.md`](frontend/README.md).
 
 ## Storage
 
