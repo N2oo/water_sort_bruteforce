@@ -1,0 +1,12 @@
+[package]
+name = "water-sort-core"
+description = "Pure domain of the water sort puzzle: pipes, game rules and the bruteforce solver."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "water_sort_core"
+path = "src/lib.rs"
+
+[dependencies]

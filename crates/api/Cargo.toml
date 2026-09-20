@@ -1,0 +1,38 @@
+[package]
+name = "water-sort-api"
+description = "HTTP API to play, persist and solve water sort puzzles."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "water_sort_api"
+path = "src/lib.rs"
+
+[[bin]]
+name = "water-sort-api"
+path = "src/main.rs"
+
+[dependencies]
+water-sort-core.workspace = true
+water-sort-format.workspace = true
+water-sort-migration.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+chrono.workspace = true
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
