@@ -1,0 +1,47 @@
+# Brings up PostgreSQL, the API and the React front end together:
+#
+#   docker compose up --build
+#   curl localhost:8080/health      # the API
+#   open http://localhost:5173      # the front end
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: water_sort
+      POSTGRES_PASSWORD: water_sort
+      POSTGRES_DB: water_sort
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U water_sort -d water_sort"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgres://water_sort:water_sort@postgres:5432/water_sort
+      BIND_ADDRESS: 0.0.0.0:8080
+      RUN_MIGRATIONS: "true"
+      SOLVER_TIMEOUT_SECONDS: "30"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    environment:
+      # nginx serves the app and forwards /api and /health to this address, so
+      # the browser only ever talks to one origin.
+      API_URL: http://api:8080
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:

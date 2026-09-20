@@ -1,0 +1,19 @@
+[package]
+name = "water-sort-migration"
+description = "SeaORM migrations for the water sort API."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "water_sort_migration"
+path = "src/lib.rs"
+
+[[bin]]
+name = "water-sort-migration"
+path = "src/main.rs"
+
+[dependencies]
+sea-orm-migration.workspace = true
+tokio.workspace = true

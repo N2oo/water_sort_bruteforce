@@ -1,83 +1,13 @@
-mod game;
-mod pipe;
-use std::collections::{HashMap, HashSet};
-use std::error::Error;
-use std::fs::File;
-use std::path::Path;
+//! Bruteforce solver.
+//!
+//! Moved verbatim out of the original `main.rs`: the search strategy, the depth
+//! limit and the produced `"SRC->DST"` move list are unchanged, only the
+//! visibility of the entry point was widened so every adapter (CLI, HTTP) can
+//! reuse the very same algorithm.
+
+use std::collections::HashSet;
 
 use crate::game::Game;
-use crate::pipe::{Color, Pipe};
-
-fn main() {
-    let json_path = std::env::args().nth(1).unwrap_or_else(|| "level.json".to_string());
-
-    let game = match load_game_from_json(Path::new(&json_path)) {
-        Ok(game) => game,
-        Err(err) => {
-            eprintln!("Erreur lors du chargement du JSON '{}': {}", json_path, err);
-            eprintln!("Utilisation: cargo run -- <fichier_json>");
-            return;
-        }
-    };
-
-    if let Some(moves) = solve_puzzle_by_bruteforce(&game) {
-        println!("✓ Solution trouvée en {} mouvements !\n", moves.len());
-        for (i, movement) in moves.iter().enumerate() {
-            println!("  Mouvement {} : {}", i + 1, movement);
-        }
-    } else {
-        println!("✗ Aucune solution trouvée");
-    }
-}
-
-fn parse_color(color: &str) -> Result<Color, String> {
-    match color.to_lowercase().as_str() {
-        "grey" | "gray" => Ok(Color::Grey),
-        "blue" => Ok(Color::Blue),
-        "lemon" => Ok(Color::Lemon),
-        "brown" => Ok(Color::Brown),
-        "green" => Ok(Color::Green),
-        "red" => Ok(Color::Red),
-        "lightgreen" | "light_green" => Ok(Color::LightGreen),
-        "lightblue" | "light_blue" => Ok(Color::LightBlue),
-        "pink" => Ok(Color::Pink),
-        "orange" => Ok(Color::Orange),
-        "purple" => Ok(Color::Purple),
-        "yellow" => Ok(Color::Yellow),
-        _ => Err(format!("Couleur inconnue : '{}'.", color)),
-    }
-}
-
-fn load_game_from_json(path: &Path) -> Result<Game, Box<dyn Error>> {
-    println!("{path:#?}");
-    let file = File::open(path)?;
-    let json: serde_json::Value = serde_json::from_reader(file)?;
-
-    let pipes_obj = json
-        .get("pipes")
-        .and_then(|v| v.as_object())
-        .ok_or("La clé 'pipes' doit être un objet JSON")?;
-
-    let mut pipes = HashMap::new();
-
-    for (ident, value) in pipes_obj.iter() {
-        let colors = value
-            .as_array()
-            .ok_or_else(|| format!("La valeur pour '{}' doit être un tableau", ident))?;
-
-        let mut pipe = Pipe::new(ident.clone());
-        for color_value in colors {
-            let color_str = color_value
-                .as_str()
-                .ok_or_else(|| format!("Couleur non valide dans '{}'", ident))?;
-            pipe.add_color(parse_color(color_str)?);
-        }
-
-        pipes.insert(ident.clone(), pipe);
-    }
-
-    Ok(Game::new(pipes))
-}
 
 fn game_state_key(game: &Game) -> String {
     let mut names: Vec<String> = game.pipes().keys().cloned().collect();
@@ -151,7 +81,8 @@ fn search_bruteforce(game: &Game, visited: &mut HashSet<String>, path: &mut Vec<
     false
 }
 
-fn solve_puzzle_by_bruteforce(game: &Game) -> Option<Vec<String>> {
+/// Solve `game`, returning the winning moves as `"SRC->DST"` strings.
+pub fn solve_puzzle_by_bruteforce(game: &Game) -> Option<Vec<String>> {
     let mut visited = HashSet::new();
     let mut path = Vec::new();
 
@@ -162,6 +93,7 @@ fn solve_puzzle_by_bruteforce(game: &Game) -> Option<Vec<String>> {
     }
 }
 
+#[allow(unreachable_code)]
 fn optimize(path: Vec<String>) -> Vec<String> {
     return path;
     let mut result = Vec::new();
